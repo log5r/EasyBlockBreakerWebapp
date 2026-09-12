@@ -3,7 +3,7 @@
 [English](README.md) | **日本語**
 
 鋼の筐体の中を転がる銀色の玉で、制限時間内にできるだけ多くのブロックを砕くブラウザゲームです。
-HTML / CSS / JavaScript (Canvas 2D + Web Audio API) のみで書かれた単一ファイル構成で、ビルドや依存パッケージは不要です。
+HTML / CSS / JavaScript (Canvas 2D + Web Audio API) のみで書かれており、ビルドや依存パッケージは不要です。
 
 ## 遊び方
 
@@ -36,7 +36,12 @@ python3 -m http.server 8765
 ## ファイル構成
 
 ```
-index.html   ゲーム本体（HTML / CSS / JS をすべて含む）
+index.html        画面構造
+css/style.css     スタイル
+js/core.js        共通設定とユーティリティ
+js/audio.js       効果音
+js/renderer.js    Canvas 描画とテクスチャ
+js/game.js        ゲーム状態・ルール・入力・ループ
 ```
 
 ## ライセンス

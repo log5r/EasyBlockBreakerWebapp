@@ -3,7 +3,7 @@
 **English** | [日本語](README.ja.md)
 
 A browser game where a silver ball rolls around inside a steel cabinet and you smash as many blocks as you can before time runs out.
-Written in plain HTML / CSS / JavaScript (Canvas 2D + Web Audio API) as a single file — no build step, no dependencies.
+Written in plain HTML / CSS / JavaScript (Canvas 2D + Web Audio API) — no build step, no dependencies.
 
 ## How to play
 
@@ -36,7 +36,12 @@ Then open http://localhost:8765/.
 ## Project layout
 
 ```
-index.html   The whole game (HTML / CSS / JS in one file)
+index.html        Page structure
+css/style.css     Styles
+js/core.js        Shared configuration and helpers
+js/audio.js       Sound effects
+js/renderer.js    Canvas drawing and textures
+js/game.js        Game state, rules, controls, and loop
 ```
 
 ## License
