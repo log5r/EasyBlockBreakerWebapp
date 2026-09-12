@@ -4,6 +4,7 @@
 
 const { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, REGROW_PER_HP,
         STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_DROP_PITY, ITEM_DROP_COOLDOWN, MAX_FALLING_ITEMS, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE } = window.RealBlockBreaker;
+const { t, labelButton } = window.RealBlockBreaker.i18n;
 const canvas = document.getElementById('c');
 const sound = window.RealBlockBreaker.createAudio();
 const { initAudio, sfx } = sound;
@@ -139,7 +140,7 @@ function endGame(title = 'TIME UP') {
   document.getElementById('finalScore').textContent = state.score.toLocaleString();
   document.getElementById('finalBest').textContent = 'BEST ' + state.best.toLocaleString();
   document.getElementById('finalStats').textContent =
-    `WAVE ${state.wave} 到達 ／ ブロック ${state.blocksBroken} 個 ／ 最大コンボ ${state.maxCombo}`;
+    t('stats', { wave: state.wave, blocks: state.blocksBroken, combo: state.maxCombo });
   document.getElementById('over').classList.remove('hidden');
 }
 function showBanner(text, sub, dur) { state.banner = { text, sub, t: 0, dur }; }
@@ -150,6 +151,7 @@ function setPaused(on) {
   state.keys = {};   // a key held across the pause must not keep the deflector moving afterwards
   document.getElementById('pause').classList.toggle('hidden', !on);
   document.getElementById('pauseBtn').textContent = on ? '▶' : '❚❚';
+  labelButton('pauseBtn', on ? 'resumeAction' : 'pauseAction');
 }
 function togglePause() { setPaused(!state.paused); }
 // finish from the pause screen: the run ends now with its current score, exactly as if the clock had hit zero
@@ -198,7 +200,11 @@ document.getElementById('quitBtn').addEventListener('click', quitGame);
 document.getElementById('pauseBtn').addEventListener('click', e => { togglePause(); e.target.blur(); });
 // switching tabs mid-run: coming back should not drop the player straight onto a ball already in flight
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
-function toggleMute() { document.getElementById('mute').textContent = sound.toggleMute() ? '🔇' : '🔊'; }
+function toggleMute() {
+  const muted = sound.toggleMute();
+  document.getElementById('mute').textContent = muted ? '🔇' : '🔊';
+  labelButton('mute', muted ? 'unmuteAction' : 'muteAction');
+}
 // flash effect toggle: one checkbox on the title screen and one on the pause screen, kept in sync and remembered across sessions
 const flashToggles = [...document.querySelectorAll('.flashToggle')];
 function setFlashFx(on) {

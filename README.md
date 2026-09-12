@@ -5,6 +5,8 @@
 A browser game where a silver ball rolls around inside a steel cabinet and you smash as many blocks as you can before time runs out.
 Written in plain HTML / CSS / JavaScript (Canvas 2D + Web Audio API) — no build step, no dependencies.
 
+The interface automatically selects Japanese or English from your browser’s language preferences, falling back to English if neither is listed.
+
 ## How to play
 
 - The bottom of the playfield is a wall, so the ball never drops out. There are no lives; you compete for score within a **90-second time limit**.
@@ -59,6 +61,7 @@ npx wrangler@4.131.1 deploy
 ```
 index.html        Page structure
 css/style.css     Styles
+js/i18n.js        Language selection and translations
 js/core.js        Shared configuration and helpers
 js/audio.js       Sound effects
 js/renderer.js    Canvas drawing and textures

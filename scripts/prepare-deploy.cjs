@@ -7,6 +7,7 @@ const files = [
   'index.html',
   'css/style.css',
   'js/core.js',
+  'js/i18n.js',
   'js/audio.js',
   'js/renderer.js',
   'js/game.js',

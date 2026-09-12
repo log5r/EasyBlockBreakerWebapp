@@ -3,18 +3,20 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
-const element = { addEventListener() {}, style: {}, classList: { add() {}, remove() {}, toggle() {} } };
+const element = { addEventListener() {}, setAttribute() {}, style: {}, classList: { add() {}, remove() {}, toggle() {} } };
 const math = Object.create(Math);
 const context = vm.createContext({
   window: { addEventListener() {}, innerWidth: 600, innerHeight: 880 },
-  document: { getElementById: () => element, addEventListener() {} },
-  localStorage: { getItem: () => null }, performance: { now: () => 0 },
+  navigator: { language: 'ja-JP' },
+  document: { documentElement: {}, querySelectorAll: () => [], getElementById: () => element, addEventListener() {} },
+  localStorage: { getItem: () => null, setItem() {} }, performance: { now: () => 0 },
   requestAnimationFrame() {}, Math: math,
 });
 const source = name => fs.readFileSync(path.join(__dirname, '../js', name), 'utf8');
 vm.runInContext(source('core.js'), context);
+vm.runInContext(source('i18n.js'), context);
 Object.assign(context.window.RealBlockBreaker, {
-  createAudio: () => ({ initAudio() {}, sfx() {} }),
+  createAudio: () => ({ initAudio() {}, sfx() {}, setVolume() {} }),
   createRenderer: () => ({ render() {} }),
 });
 vm.runInContext(source('game.js').replace('window.__rbb = state;',
