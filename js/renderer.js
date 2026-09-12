@@ -108,51 +108,58 @@ function roundRect(c, x, y, w, h, r) {
   c.quadraticCurveTo(x, y + h, x, y + h - r); c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y); c.closePath();
 }
 
-function drawBlock(bl) {
+// cubes sit edge to edge, so each one is drawn as a square with a bevelled rim
+// (light top/left, dark bottom/right) instead of a rounded, inset tile
+function blockTransform(bl) {
   const s = bl.spawn <= 0 ? 0 : 1 - Math.pow(1 - bl.spawn, 3);
-  if (s <= 0) return;
+  if (s <= 0) return false;
   const cx = bl.x + bl.w / 2, cy = bl.y + bl.h / 2;
-  ctx.save();
   ctx.translate(cx, cy); ctx.scale(s, s);
   if (bl.wobble > 0) ctx.rotate(Math.sin(bl.wobble * 20) * 0.04 * bl.wobble);
   ctx.translate(-cx, -cy);
-  const x = bl.x, y = bl.y, w = bl.w, h = bl.h;
-  // drop shadow onto the board
-  ctx.fillStyle = 'rgba(0,0,0,.5)'; roundRect(ctx, x + 2, y + 4, w, h, 3); ctx.fill();
-  // steel body (sides)
-  const sg = ctx.createLinearGradient(x, y, x, y + h);
-  sg.addColorStop(0, '#6a7178'); sg.addColorStop(1, '#2c3136');
-  ctx.fillStyle = sg; roundRect(ctx, x, y, w, h, 3); ctx.fill();
-  // painted top face
-  const inset = 2;
-  const tg = ctx.createLinearGradient(x, y, x, y + h);
-  tg.addColorStop(0, bl.color.light); tg.addColorStop(0.55, bl.color.base); tg.addColorStop(1, bl.color.dark);
-  ctx.fillStyle = tg; roundRect(ctx, x + inset, y + inset, w - inset * 2, h - inset * 2 - 1, 2); ctx.fill();
-  // brushed lines through the paint
-  ctx.save(); roundRect(ctx, x + inset, y + inset, w - inset * 2, h - inset * 2 - 1, 2); ctx.clip(); ctx.lineWidth = 1;
-  for (let i = 0; i < 12; i++) {
+  return true;
+}
+function drawBlockShadow(bl) {
+  ctx.save();
+  if (blockTransform(bl)) { ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(bl.x + 3, bl.y + 5, bl.w, bl.h); }
+  ctx.restore();
+}
+function drawBlock(bl) {
+  ctx.save();
+  if (!blockTransform(bl)) { ctx.restore(); return; }
+  const x = bl.x, y = bl.y, w = bl.w, h = bl.h, bv = Math.max(3, Math.round(w * 0.12));   // bevel width
+  // painted face fills the whole cell
+  const tg = ctx.createLinearGradient(x, y, x + w, y + h);
+  tg.addColorStop(0, bl.color.light); tg.addColorStop(0.5, bl.color.base); tg.addColorStop(1, bl.color.dark);
+  ctx.fillStyle = tg; ctx.fillRect(x, y, w, h);
+  // brushed lines through the paint (inner face only)
+  ctx.save(); ctx.beginPath(); ctx.rect(x + bv, y + bv, w - bv * 2, h - bv * 2); ctx.clip(); ctx.lineWidth = 1;
+  for (let i = 0, ly = y + bv + 1; ly < y + h - bv; i++, ly += 1.7) {
     ctx.strokeStyle = i % 2 ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.10)';
-    ctx.beginPath(); ctx.moveTo(x, y + 3 + i * 1.7); ctx.lineTo(x + w, y + 3 + i * 1.7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, ly); ctx.lineTo(x + w, ly); ctx.stroke();
   }
   ctx.restore();
-  // top edge highlight
-  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(x + 4, y + 2.5); ctx.lineTo(x + w - 4, y + 2.5); ctx.stroke();
+  // bevelled rim: lit top + left, shaded bottom + right (mitred at the corners)
+  ctx.fillStyle = 'rgba(255,255,255,.28)';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w - bv, y + bv); ctx.lineTo(x + bv, y + bv); ctx.lineTo(x + bv, y + h - bv); ctx.lineTo(x, y + h); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,.38)';
+  ctx.beginPath(); ctx.moveTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.lineTo(x + bv, y + h - bv); ctx.lineTo(x + w - bv, y + h - bv); ctx.lineTo(x + w - bv, y + bv); ctx.lineTo(x + w, y); ctx.closePath(); ctx.fill();
+  // steel seam between neighbouring cubes
+  ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.strokeRect(x + bv + 0.5, y + bv + 0.5, w - bv * 2 - 1, h - bv * 2 - 1);
   // damage: paint scratched down to bare metal on multi-hit blocks
   if (bl.maxHp > 1) {
     const dmg = bl.maxHp - bl.hp;
     ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1.2;
     for (let i = 0; i < dmg; i++) {
-      const sx = x + w * (0.25 + 0.5 * ((i * 7) % 3) / 2), sy = y + 4;
-      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx - 6 + (i % 2) * 12, sy + 8); ctx.lineTo(sx + 2 - (i % 2) * 8, sy + h - 8); ctx.stroke();
+      const sx = x + w * (0.3 + 0.4 * ((i * 7) % 3) / 2), sy = y + bv + 3;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx - 8 + (i % 2) * 16, sy + h * 0.35); ctx.lineTo(sx + 3 - (i % 2) * 10, sy + h - bv * 2 - 6); ctx.stroke();
       ctx.strokeStyle = 'rgba(220,226,232,.7)'; ctx.lineWidth = 0.8;
-      ctx.beginPath(); ctx.moveTo(sx + 1, sy); ctx.lineTo(sx - 5 + (i % 2) * 12, sy + 8); ctx.lineTo(sx + 3 - (i % 2) * 8, sy + h - 8); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx + 1, sy); ctx.lineTo(sx - 7 + (i % 2) * 16, sy + h * 0.35); ctx.lineTo(sx + 4 - (i % 2) * 10, sy + h - bv * 2 - 6); ctx.stroke();
       ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1.2;
     }
-    // hex bolts mark reinforced blocks
-    if (bl.maxHp >= 2) { hexBolt(ctx, x + 7, y + h / 2 - 1, 3, '#dfe4e8'); hexBolt(ctx, x + w - 7, y + h / 2 - 1, 3, '#dfe4e8'); }
     if (bl.maxHp >= 3) {
-      ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1; roundRect(ctx, x + inset + 1, y + inset + 1, w - inset * 2 - 2, h - inset * 2 - 3, 2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1.5; ctx.strokeRect(x + bv + 3, y + bv + 3, w - bv * 2 - 6, h - bv * 2 - 6);
     }
   }
   ctx.restore();
@@ -285,11 +292,14 @@ function drawHUD() {
   const t = Math.ceil(state.time);
   plate(12, 190, 'SCORE', state.score.toLocaleString());
   plate(212, 110, 'TIME', t.toString(), t <= 10 && state.mode === 'playing' && (Math.floor(state.time * 4) % 2 === 0) ? '#ff5a4a' : t <= 10 ? '#ffb1a8' : LED_BLUE);
-  plate(332, 86, 'COMBO', 'x' + multiplier(), multiplier() > 1 ? '#ffffff' : LED_BLUE);
+  // COMBO: big digits = hit count (+1 per hit), small badge = score multiplier, bar = progress to next multiplier
+  plate(332, 86, 'COMBO', state.combo.toString(), state.combo > 0 ? '#ffffff' : LED_BLUE);
   plate(428, 66, 'WAVE', state.wave.toString());
   plate(504, 84, 'BEST', state.best.toLocaleString(), '#a9c8dc');
-  // combo bar
   if (state.mode === 'playing') {
+    ctx.textAlign = 'right'; ctx.font = '700 10px "JetBrains Mono", "Menlo", "SF Mono", Consolas, monospace';
+    ctx.fillStyle = multiplier() > 1 ? '#ffd27a' : '#6f8aa6';
+    ctx.fillText('x' + multiplier(), 332 + 86 - 9, 12 + 12);
     const cx = 332 + 8, cw = 86 - 16, cy = HUD_H - 15;
     ctx.fillStyle = 'rgba(143,216,255,.12)'; ctx.fillRect(cx, cy, cw, 3);
     ctx.fillStyle = LED_BLUE; ctx.fillRect(cx, cy, cw * ((state.combo % 4) / 4), 3);
@@ -303,6 +313,7 @@ function render() {
   ctx.drawImage(bgCanvas, 0, 0);
   // play area clip for blocks/balls
   ctx.save(); ctx.beginPath(); ctx.rect(L, T, Rgt - L, B - T); ctx.clip();
+  for (const bl of state.blocks) drawBlockShadow(bl);   // shadows first so they never paint over a neighbour
   for (const bl of state.blocks) drawBlock(bl);
   drawParticles();
   for (const b of state.balls) drawBall(b);

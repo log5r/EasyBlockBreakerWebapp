@@ -27,12 +27,17 @@ function multiplier() { return 1 + Math.min(7, Math.floor(state.combo / 4)); }
 function baseSpeed() { return Math.min(MAX_SPEED * 0.8, BASE_SPEED + (state.wave - 1) * 25); }
 
 // ---------------------------------------------------------------- block layouts
-const BW = 60, BH = 26, GAP = 6, COLS = 8;
-const GRID_X0 = L + ((Rgt - L) - (COLS * (BW + GAP) - GAP)) / 2;
-const GRID_Y0 = T + 34;
+// Layouts are designed on an 8-column grid; each design cell is split into SUB x SUB cubes
+// that tile edge to edge and sit flush against the rails.
+const COLS = 8, SUB = 2, CUBE = (Rgt - L) / (COLS * SUB);
+const GRID_X0 = L, GRID_Y0 = T;
 function mkBlock(col, row, hp, colorIdx) {
-  return { x: GRID_X0 + col * (BW + GAP), y: GRID_Y0 + row * (BH + GAP), w: BW, h: BH,
-           hp, maxHp: hp, color: PALETTE[colorIdx % PALETTE.length], spawn: 0, active: false, wobble: 0, dead: false };
+  const cubes = [];
+  for (let j = 0; j < SUB; j++) for (let i = 0; i < SUB; i++) {
+    cubes.push({ x: GRID_X0 + (col * SUB + i) * CUBE, y: GRID_Y0 + (row * SUB + j) * CUBE, w: CUBE, h: CUBE,
+                 hp, maxHp: hp, color: PALETTE[colorIdx % PALETTE.length], spawn: 0, active: false, wobble: 0, dead: false });
+  }
+  return cubes;
 }
 const LAYOUTS = [
   // 0: classic grid
@@ -52,7 +57,7 @@ const LAYOUTS = [
 ];
 function spawnWave(wave) {
   const idx = (wave - 1) % LAYOUTS.length;
-  const blocks = LAYOUTS[idx](wave);
+  const blocks = LAYOUTS[idx](wave).flat();
   const extraHp = Math.floor((wave - 1) / LAYOUTS.length);   // gets tougher each full cycle
   blocks.forEach((b, i) => { b.hp += extraHp; b.maxHp = b.hp; b.spawn = -i * 0.012; });
   state.blocks = blocks;
@@ -168,12 +173,17 @@ function stepBall(b, dt) {
     b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
   }
 
-  // blocks
+  // blocks: cubes touch each other, so resolve against the deepest overlap only —
+  // otherwise a neighbour's corner could deflect a ball that hit a flat shared face
+  let hit = null, hcx = 0, hcy = 0, hd2 = R * R;
   for (const bl of state.blocks) {
     if (!bl.active || bl.dead) continue;
     const cx = clamp(b.x, bl.x, bl.x + bl.w), cy = clamp(b.y, bl.y, bl.y + bl.h);
     const dx = b.x - cx, dy = b.y - cy, d2 = dx * dx + dy * dy;
-    if (d2 >= R * R) continue;
+    if (d2 < hd2) { hit = bl; hcx = cx; hcy = cy; hd2 = d2; }
+  }
+  if (hit) {
+    const bl = hit, cx = hcx, cy = hcy, d2 = hd2, dx = b.x - cx, dy = b.y - cy;
     let nx, ny;
     if (d2 > 1e-6) { const d = Math.sqrt(d2); nx = dx / d; ny = dy / d; b.x = cx + nx * R; b.y = cy + ny * R; }
     else {
@@ -184,7 +194,6 @@ function stepBall(b, dt) {
     const vn = b.vx * nx + b.vy * ny;
     if (vn < 0) { b.vx -= 2 * vn * nx; b.vy -= 2 * vn * ny; }
     hitBlock(bl, b, nx, ny);
-    break;
   }
 
   // anti-stall: if the ball is nearly horizontal / vertical for too long, nudge it
