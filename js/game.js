@@ -14,7 +14,8 @@ const state = {
   time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
   zone: { x: W / 2, target: W / 2, vx: 0, flash: 0 },
   balls: [], blocks: [], particles: [], popups: [],
-  banner: null, shake: 0, keys: {},
+  banner: null, keys: {},
+  impact: 0, glow: 0, hitColor: null,   // impact = pulse added per break; glow eases after it (LED flare + soft flash)
   timeAlive: 0,
 };
 
@@ -67,7 +68,7 @@ function spawnWave(wave) {
 function startGame() {
   initAudio();
   Object.assign(state, { mode: 'playing', score: 0, time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
-                         particles: [], popups: [], banner: null, shake: 0, timeAlive: 0 });
+                         particles: [], popups: [], banner: null, impact: 0, glow: 0, timeAlive: 0 });
   state.zone.x = state.zone.target = W / 2; state.zone.vx = 0;
   state.balls = [newBall(W / 2, B - R - 40, rand(-0.5, 0.5), BASE_SPEED)];
   spawnWave(1);
@@ -119,7 +120,7 @@ function hitBlock(bl, b, nx, ny) {
     popup(bl.x + bl.w / 2, bl.y + bl.h / 2, '+' + pts, bl.color.light, multiplier() > 1 ? 20 : 16);
     spawnSplinters(bl, px, py, 14);
     sfx('tile', 1);
-    state.shake = Math.min(1, state.shake + 0.25);
+    state.impact = Math.min(1, state.impact + 0.35); state.hitColor = bl.color;
   } else {
     spawnSplinters(bl, px, py, 5);
     sfx('tile', 0.6);
@@ -279,7 +280,9 @@ function update(dt) {
   for (const p of state.popups) p.t += dt;
   state.popups = state.popups.filter(p => p.t < 1.0);
   if (state.banner) { state.banner.t += dt; if (state.banner.t > state.banner.dur) state.banner = null; }
-  state.shake = Math.max(0, state.shake - dt * 4);
+  // glow chases impact with a lag so the light swells and fades instead of snapping on
+  state.impact = Math.max(0, state.impact - dt * 2.5);
+  state.glow += (state.impact - state.glow) * (1 - Math.exp(-dt * 9));
 }
 
 const { render } = window.RealBlockBreaker.createRenderer(canvas, state, multiplier);

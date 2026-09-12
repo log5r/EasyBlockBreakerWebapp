@@ -307,10 +307,36 @@ function drawHUD() {
   ctx.restore();
 }
 
+// impact feedback: state.glow is a smoothed 0..1 value that swells after a block breaks and eases back
+function drawImpactGlow() {
+  const k = state.glow;
+  if (k <= 0.005) return;
+  ctx.save();
+  // rail LEDs flare up in the colour of the block that just broke
+  const col = state.hitColor ? state.hitColor.light : LED_WARM;
+  ctx.lineJoin = 'round'; ctx.strokeStyle = col; ctx.shadowColor = col;
+  for (let i = 3; i >= 1; i--) {
+    ctx.shadowBlur = 10 * i + k * 14; ctx.globalAlpha = k * 0.45; ctx.lineWidth = 1.5 + k;
+    ctx.strokeRect(L + 5, T + 5, Rgt - L - 10, B - T - 10);
+  }
+  ctx.shadowBlur = 0; ctx.globalAlpha = k * 0.9; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+  ctx.strokeRect(L + 5, T + 5, Rgt - L - 10, B - T - 10);
+  ctx.restore();
+}
+function drawImpactFlash() {
+  const k = state.glow;
+  if (k <= 0.005) return;
+  ctx.save();
+  ctx.globalAlpha = k * 0.1;
+  ctx.fillStyle = state.hitColor ? state.hitColor.light : '#fff';
+  ctx.fillRect(L, T, Rgt - L, B - T);
+  ctx.restore();
+}
+
 function render() {
   ctx.save();
-  if (state.shake > 0) ctx.translate(rand(-1, 1) * state.shake * 4, rand(-1, 1) * state.shake * 4);
   ctx.drawImage(bgCanvas, 0, 0);
+  drawImpactGlow();
   // play area clip for blocks/balls
   ctx.save(); ctx.beginPath(); ctx.rect(L, T, Rgt - L, B - T); ctx.clip();
   for (const bl of state.blocks) drawBlockShadow(bl);   // shadows first so they never paint over a neighbour
@@ -318,6 +344,7 @@ function render() {
   drawParticles();
   for (const b of state.balls) drawBall(b);
   drawPopups();
+  drawImpactFlash();
   ctx.restore();
   drawZone();
   drawBanner();
