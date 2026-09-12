@@ -22,6 +22,7 @@ const state = {
   impact: 0, glow: 0, hitColor: null,   // impact = pulse added per break; glow eases after it (LED flare + soft flash)
   timeAlive: 0,
   itemDropMisses: 0, nextItemDropAt: 0,
+  flashFx: localStorage.getItem('rbb_flash') !== '0',   // screen flash + rail flare on block breaks; off = calmer visuals
 };
 
 function newBall(x, y, angle, speed, temp = false) {
@@ -179,6 +180,7 @@ canvas.addEventListener('mousemove', e => { state.zone.target = clamp(pointerToX
 canvas.addEventListener('touchstart', e => { e.preventDefault(); state.zone.target = clamp(pointerToX(e.touches[0].clientX), zoneMin, zoneMax); }, { passive: false });
 canvas.addEventListener('touchmove', e => { e.preventDefault(); state.zone.target = clamp(pointerToX(e.touches[0].clientX), zoneMin, zoneMax); }, { passive: false });
 window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;   // Space on a focused checkbox toggles it, it must not also start / resume the game
   state.keys[e.key] = true;
   if (e.key === 'm' || e.key === 'M') toggleMute();
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
@@ -197,6 +199,15 @@ document.getElementById('pauseBtn').addEventListener('click', e => { togglePause
 // switching tabs mid-run: coming back should not drop the player straight onto a ball already in flight
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
 function toggleMute() { document.getElementById('mute').textContent = sound.toggleMute() ? '🔇' : '🔊'; }
+// flash effect toggle: one checkbox on the title screen and one on the pause screen, kept in sync and remembered across sessions
+const flashToggles = [...document.querySelectorAll('.flashToggle')];
+function setFlashFx(on) {
+  state.flashFx = on;
+  localStorage.setItem('rbb_flash', on ? '1' : '0');
+  for (const el of flashToggles) el.checked = on;
+}
+for (const el of flashToggles) el.addEventListener('change', e => { setFlashFx(e.target.checked); e.target.blur(); });
+setFlashFx(state.flashFx);
 document.getElementById('mute').addEventListener('click', e => { initAudio(); toggleMute(); e.target.blur(); });
 
 // ---------------------------------------------------------------- physics

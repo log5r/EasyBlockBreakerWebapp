@@ -443,7 +443,7 @@ function drawHUD() {
 // impact feedback: state.glow is a smoothed 0..1 value that swells after a block breaks and eases back
 function drawImpactGlow() {
   const k = state.glow;
-  if (k <= 0.005) return;
+  if (!state.flashFx || k <= 0.005) return;
   ctx.save();
   // rail LEDs flare up in the colour of the block that just broke
   const col = state.hitColor ? state.hitColor.light : LED_WARM;
@@ -458,7 +458,7 @@ function drawImpactGlow() {
 }
 function drawImpactFlash() {
   const k = state.glow;
-  if (k <= 0.005) return;
+  if (!state.flashFx || k <= 0.005) return;
   ctx.save();
   ctx.globalAlpha = k * 0.1;
   ctx.fillStyle = state.hitColor ? state.hitColor.light : '#fff';
