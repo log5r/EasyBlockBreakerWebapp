@@ -141,11 +141,36 @@ function drawBlockShadow(bl) {
   if (blockTransform(bl)) { ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(bl.x + 3, bl.y + 5, bl.w, bl.h); }
   ctx.restore();
 }
+// indestructible cube: bare brushed stainless, riveted at the corners, no paint and no damage marks
+function drawSteelBlock(bl, x, y, w, h, bv) {
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  STEEL.forEach(([p, col]) => g.addColorStop(p, col));
+  ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+  // heavier bevel than the painted cubes so it reads as thick plate
+  ctx.fillStyle = 'rgba(255,255,255,.45)';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w - bv, y + bv); ctx.lineTo(x + bv, y + bv); ctx.lineTo(x + bv, y + h - bv); ctx.lineTo(x, y + h); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,.5)';
+  ctx.beginPath(); ctx.moveTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.lineTo(x + bv, y + h - bv); ctx.lineTo(x + w - bv, y + h - bv); ctx.lineTo(x + w - bv, y + bv); ctx.lineTo(x + w, y); ctx.closePath(); ctx.fill();
+  // brushed grain across the inner face
+  ctx.save(); ctx.beginPath(); ctx.rect(x + bv, y + bv, w - bv * 2, h - bv * 2); ctx.clip(); ctx.lineWidth = 1;
+  for (let i = 0, ly = y + bv + 1; ly < y + h - bv; i++, ly += 1.4) {
+    ctx.strokeStyle = i % 2 ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.14)';
+    ctx.beginPath(); ctx.moveTo(x, ly); ctx.lineTo(x + w, ly); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  const rv = Math.max(2, w * 0.08), inset = bv + rv + 1;
+  [[x + inset, y + inset], [x + w - inset, y + inset], [x + inset, y + h - inset], [x + w - inset, y + h - inset]]
+    .forEach(([bx, by]) => hexBolt(ctx, bx, by, rv, '#b5bcc3'));
+  // clang flash: the plate lights up white for an instant when the ball hits it
+  if (bl.flash > 0) { ctx.fillStyle = `rgba(255,250,235,${0.45 * bl.flash})`; ctx.fillRect(x, y, w, h); }
+}
 function drawBlock(bl) {
   if (bl.dead) return;
   ctx.save();
   if (!blockTransform(bl)) { ctx.restore(); return; }
   const x = bl.x, y = bl.y, w = bl.w, h = bl.h, bv = Math.max(3, Math.round(w * 0.12));   // bevel width
+  if (bl.steel) { drawSteelBlock(bl, x, y, w, h, bv); ctx.restore(); return; }
   // painted face fills the whole cell
   const tg = ctx.createLinearGradient(x, y, x + w, y + h);
   tg.addColorStop(0, bl.color.light); tg.addColorStop(0.5, bl.color.base); tg.addColorStop(1, bl.color.dark);

@@ -12,6 +12,7 @@ Written in plain HTML / CSS / JavaScript (Canvas 2D + Web Audio API) — no buil
 - Breaking blocks in a row builds a combo, and every 4 hits raises the score multiplier (up to x8). Hitting any wall other than the deflector breaks the combo.
 - Broken blocks **regrow in place** after a while. The delay is proportional to toughness (toughness × 6 s); the empty socket shows a gauge while it regrows.
 - Breaking as many cubes as the layout holds **clears the wave** (regrown blocks count again; the bar under WAVE shows progress). That awards bonus points and **extra time (+10 s)**, spawns a new wave of blocks, and adds one more ball (up to 3). Blocks get tougher and balls get faster as the waves go on.
+- From wave 3 on, **steel blocks** (riveted stainless slabs) are mixed into the layout. They can never be broken, only bounce the ball, and don't count toward the clear quota (PIERCE doesn't go through them either). One more appears every 2 waves, up to 6. They are only placed where they **don't split the board into more connected regions** — i.e. they never seal off a pocket the ball can't get into — so an unclearable wave is impossible.
 - Broken blocks occasionally drop an **item**. Catch it on the deflector to activate a timed power-up; items that land on any other part of the bottom wall vanish.
   - **SPEED** (8 s): the balls move much faster.
   - **BIG** (10 s): the balls grow larger.

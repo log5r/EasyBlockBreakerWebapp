@@ -18,6 +18,11 @@ const MAX_BALLS = 3;
 // a broken cube leaves its socket behind and regrows there after REGROW_PER_HP seconds per point of toughness;
 // a wave clears once as many cubes as the layout holds have been broken (regrown ones count again)
 const REGROW_PER_HP = 6;
+// ---------------------------------------------------------------- steel
+// indestructible cubes mixed into the layout from STEEL_FROM_WAVE on; the count grows every STEEL_STEP waves up to STEEL_MAX cells.
+// they never split the board: a cell is only accepted if every non-steel cell stays reachable from the open floor
+const STEEL_FROM_WAVE = 3, STEEL_STEP = 2, STEEL_MAX = 6;
+const STEEL_COLOR = { name: 'steel', base: '#aab1b8', light: '#d6dbe0', dark: '#5b626a' };
 // ---------------------------------------------------------------- items
 // dropped by broken blocks; caught on the deflector, lost on the plain rail
 const ITEM_DROP_CHANCE = 0.15;
@@ -44,5 +49,5 @@ const PALETTE = [
 ];
 
 return { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, REGROW_PER_HP,
-         ITEM_DROP_CHANCE, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE };
+         STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE };
 })();

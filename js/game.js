@@ -3,7 +3,7 @@
 'use strict';
 
 const { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, REGROW_PER_HP,
-        ITEM_DROP_CHANCE, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE } = window.RealBlockBreaker;
+        STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE } = window.RealBlockBreaker;
 const canvas = document.getElementById('c');
 const sound = window.RealBlockBreaker.createAudio();
 const { initAudio, sfx } = sound;
@@ -39,15 +39,17 @@ function permanentBalls() { return state.balls.filter(b => !b.temp).length; }
 // that tile edge to edge and sit flush against the rails.
 const COLS = 8, SUB = 2, CUBE = (Rgt - L) / (COLS * SUB);
 const GRID_X0 = L, GRID_Y0 = T;
-function mkBlock(col, row, hp, colorIdx) {
+function mkCubes(col, row, hp, color, steel) {
   const cubes = [];
   for (let j = 0; j < SUB; j++) for (let i = 0; i < SUB; i++) {
-    cubes.push({ x: GRID_X0 + (col * SUB + i) * CUBE, y: GRID_Y0 + (row * SUB + j) * CUBE, w: CUBE, h: CUBE,
-                 hp, maxHp: hp, color: PALETTE[colorIdx % PALETTE.length], spawn: 0, active: false, wobble: 0,
+    cubes.push({ col, row, x: GRID_X0 + (col * SUB + i) * CUBE, y: GRID_Y0 + (row * SUB + j) * CUBE, w: CUBE, h: CUBE,
+                 hp, maxHp: hp, color, steel, spawn: 0, active: false, wobble: 0, flash: 0,
                  dead: false, regrow: 0, regrowT: 0 });   // dead cubes stay in the list as sockets until they regrow
   }
   return cubes;
 }
+function mkBlock(col, row, hp, colorIdx) { return mkCubes(col, row, hp, PALETTE[colorIdx % PALETTE.length], false); }
+function mkSteel(col, row) { return mkCubes(col, row, Infinity, STEEL_COLOR, true); }   // never breaks, never regrows, never counts
 const LAYOUTS = [
   // 0: classic grid
   (lv) => { const a = []; for (let r = 0; r < 4; r++) for (let c = 0; c < COLS; c++) a.push(mkBlock(c, r, r < 1 ? 2 : 1, r)); return a; },
@@ -64,13 +66,52 @@ const LAYOUTS = [
   // 6: zigzag rows
   (lv) => { const a = []; for (let r = 0; r < 8; r++) for (let c = 0; c < COLS; c++) if ((c + (r % 2)) % 3 !== 0) a.push(mkBlock(c, r, r % 3 === 0 ? 2 : 1, r % 6)); return a; },
 ];
+// ---------------------------------------------------------------- steel cells
+function steelCount(wave) { return wave < STEEL_FROM_WAVE ? 0 : Math.min(STEEL_MAX, 1 + Math.floor((wave - STEEL_FROM_WAVE) / STEEL_STEP)); }
+// true when every non-steel design cell in rows 0..rows-1 is reachable from the open floor row below the layout
+// (4-connected: a diagonal gap between two steel cells is not a passage). Breakable cubes count as passable
+// because they can always be broken; only steel is a wall.
+function floorReachesAll(steel, rows) {
+  const key = (c, r) => c + ',' + r;
+  const seen = new Set([key(0, rows)]), stack = [[0, rows]];
+  while (stack.length) {
+    const [c, r] = stack.pop();
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nc = c + dc, nr = r + dr, k = key(nc, nr);
+      if (nc < 0 || nc >= COLS || nr < 0 || nr > rows || steel.has(k) || seen.has(k)) continue;
+      seen.add(k); stack.push([nc, nr]);
+    }
+  }
+  return seen.size === (rows + 1) * COLS - steel.size;
+}
+// pick steel cells one at a time in random order; a cell is kept only if the board stays one connected region,
+// so steel can never wall off a pocket of cubes (or empty space) the ball couldn't get into
+function placeSteel(blocks, wave) {
+  const n = steelCount(wave);
+  if (n === 0) return blocks;
+  const rows = blocks.reduce((m, b) => Math.max(m, b.row), 0) + 1;   // steel lives inside the layout's rows; the row below is always open floor
+  const cells = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < COLS; c++) cells.push([c, r]);
+  for (let i = cells.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cells[i], cells[j]] = [cells[j], cells[i]]; }
+  const steel = new Set(), chosen = [];
+  for (const [c, r] of cells) {
+    if (chosen.length >= n) break;
+    const k = c + ',' + r;
+    steel.add(k);
+    if (floorReachesAll(steel, rows)) chosen.push([c, r]); else steel.delete(k);
+  }
+  // a steel cell replaces whatever breakable cubes the layout had there
+  const out = blocks.filter(b => !steel.has(b.col + ',' + b.row));
+  for (const [c, r] of chosen) out.push(...mkSteel(c, r));
+  return out;
+}
 function spawnWave(wave) {
   const idx = (wave - 1) % LAYOUTS.length;
-  const blocks = LAYOUTS[idx](wave).flat();
+  const blocks = placeSteel(LAYOUTS[idx](wave).flat(), wave);
   const extraHp = Math.floor((wave - 1) / LAYOUTS.length);   // gets tougher each full cycle
-  blocks.forEach((b, i) => { b.hp += extraHp; b.maxHp = b.hp; b.spawn = -i * 0.012; });
+  blocks.forEach((b, i) => { if (!b.steel) { b.hp += extraHp; b.maxHp = b.hp; } b.spawn = -i * 0.012; });
   state.blocks = blocks;
-  state.waveBroken = 0; state.waveQuota = blocks.length;
+  state.waveBroken = 0; state.waveQuota = blocks.filter(b => !b.steel).length;
 }
 
 // ---------------------------------------------------------------- start / reset
@@ -120,9 +161,17 @@ document.getElementById('mute').addEventListener('click', e => { initAudio(); to
 
 // ---------------------------------------------------------------- physics
 function hitBlock(bl, b, nx, ny) {
+  const px = clamp(b.x, bl.x, bl.x + bl.w), py = clamp(b.y, bl.y, bl.y + bl.h);
+  if (bl.steel) {
+    // solid steel: a heavy clang and a shower of sparks, nothing else changes (the combo survives)
+    bl.flash = 1;
+    spawnSparks(px, py, 8);
+    sfx('steel', 0.9);
+    setSpeed(b, clamp(ballSpeed(b) + 6, MIN_SPEED, maxSpeed()));
+    return;
+  }
   bl.hp--; bl.wobble = 1;
   state.combo++; state.maxCombo = Math.max(state.maxCombo, state.combo);
-  const px = clamp(b.x, bl.x, bl.x + bl.w), py = clamp(b.y, bl.y, bl.y + bl.h);
   if (bl.hp <= 0) {
     // the socket stays behind; tougher cubes take longer to regrow
     bl.dead = true; bl.active = false; bl.regrow = 0; bl.regrowT = REGROW_PER_HP * bl.maxHp;
@@ -140,6 +189,13 @@ function hitBlock(bl, b, nx, ny) {
   }
   // tiny speed kick on impact keeps things lively
   setSpeed(b, clamp(ballSpeed(b) + 6, MIN_SPEED, maxSpeed()));
+}
+function spawnSparks(px, py, n) {
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, Math.PI * 2), s = rand(120, 360);
+    state.particles.push({ x: px, y: py, vx: Math.cos(a) * s, vy: Math.sin(a) * s, rot: a, vr: 0,
+      w: rand(4, 10), h: 1.2, life: rand(0.15, 0.35), t: 0, color: Math.random() < 0.6 ? '#fff3c4' : '#ffb347' });
+  }
 }
 function spawnSplinters(bl, px, py, n) {
   for (let i = 0; i < n; i++) {
@@ -200,22 +256,23 @@ function stepBall(b, dt) {
     b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; b.stuckT = 0;
   }
 
-  if (state.effects.pierce > 0) {
+  const pierce = state.effects.pierce > 0;
+  if (pierce) {
     // PIERCE: no deflection — every cube the ball overlaps takes one hit per pass and the ball keeps going until a wall
+    // (steel is the exception: it still deflects, handled by the solid pass below)
     for (const bl of state.blocks) {
-      if (!bl.active || bl.dead || !ballOverlaps(b, bl) || b.passing.includes(bl)) continue;
+      if (bl.steel || !bl.active || bl.dead || !ballOverlaps(b, bl) || b.passing.includes(bl)) continue;
       b.passing.push(bl);
       hitBlock(bl, b, 0, 0);
     }
     b.passing = b.passing.filter(bl => bl.active && !bl.dead && ballOverlaps(b, bl));
-    return;
   }
 
   // blocks: cubes touch each other, so resolve against the deepest overlap only —
   // otherwise a neighbour's corner could deflect a ball that hit a flat shared face
   let hit = null, hcx = 0, hcy = 0, hd2 = R * R;
   for (const bl of state.blocks) {
-    if (!bl.active || bl.dead) continue;
+    if (!bl.active || bl.dead || (pierce && !bl.steel)) continue;
     const cx = clamp(b.x, bl.x, bl.x + bl.w), cy = clamp(b.y, bl.y, bl.y + bl.h);
     const dx = b.x - cx, dy = b.y - cy, d2 = dx * dx + dy * dy;
     if (d2 < hd2) { hit = bl; hcx = cx; hcy = cy; hd2 = d2; }
@@ -325,6 +382,7 @@ function update(dt) {
     }
     bl.spawn = Math.min(1, bl.spawn + dt * 2.2);
     if (bl.wobble > 0) bl.wobble = Math.max(0, bl.wobble - dt * 5);
+    if (bl.flash > 0) bl.flash = Math.max(0, bl.flash - dt * 6);
     if (!bl.active && bl.spawn >= 1) {
       // don't activate on top of a ball
       const overlap = state.balls.some(b => b.x + b.r > bl.x - 2 && b.x - b.r < bl.x + bl.w + 2 && b.y + b.r > bl.y - 2 && b.y - b.r < bl.y + bl.h + 2);
@@ -350,7 +408,7 @@ function update(dt) {
 
   // wave clear: the break quota is met, so whatever is still standing shatters and the next layout drops in
   if (state.waveBroken >= state.waveQuota) {
-    for (const bl of state.blocks) if (!bl.dead && bl.active) spawnSplinters(bl, bl.x + bl.w / 2, bl.y + bl.h / 2, 2);
+    for (const bl of state.blocks) if (!bl.dead && bl.active && !bl.steel) spawnSplinters(bl, bl.x + bl.w / 2, bl.y + bl.h / 2, 2);
     const bonus = 1000 + 500 * (state.wave - 1);
     state.score += bonus;
     state.time += WAVE_TIME_BONUS;

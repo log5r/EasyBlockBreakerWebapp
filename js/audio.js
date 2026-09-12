@@ -40,6 +40,20 @@ function sfx(kind, vol = 1) {
       og.gain.setValueAtTime(0.25 * vol / (i + 1), t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.35 - i * 0.08);
       o.connect(og); og.connect(audio.destination); o.start(t); o.stop(t + 0.4);
     });
+  } else if (kind === 'steel') {
+    // solid steel block: dull heavy clang, lower and longer than a tile hit
+    if (!_noise) _noise = noiseBuffer();
+    const src = audio.createBufferSource(); src.buffer = _noise;
+    const f = audio.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 700; f.Q.value = 1.8;
+    src.connect(f); f.connect(g);
+    g.gain.setValueAtTime(0.5 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+    src.start(t); src.stop(t + 0.1);
+    [1, 1.83, 2.9].forEach((m, i) => {
+      const o = audio.createOscillator(); const og = audio.createGain();
+      o.type = i ? 'sine' : 'triangle'; o.frequency.value = 230 * m;
+      og.gain.setValueAtTime(0.28 * vol / (i + 1), t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.5 - i * 0.1);
+      o.connect(og); og.connect(audio.destination); o.start(t); o.stop(t + 0.55);
+    });
   } else if (kind === 'clink') {
     // ball-ball steel clink
     const o = audio.createOscillator(); o.type = 'triangle'; o.frequency.value = 2400;
