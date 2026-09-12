@@ -11,6 +11,7 @@ const { initAudio, sfx } = sound;
 // ---------------------------------------------------------------- game state
 const state = {
   mode: 'ready',           // ready | playing | over
+  paused: false,           // only meaningful while playing; the loop keeps rendering but stops updating
   score: 0, best: +(localStorage.getItem('rbb_best') || 0),
   time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
   waveBroken: 0, waveQuota: 0,   // cubes broken this wave / breaks needed to clear it
@@ -119,16 +120,20 @@ function startGame() {
   initAudio();
   Object.assign(state, { mode: 'playing', score: 0, time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
                          particles: [], popups: [], items: [], effects: { speed: 0, blast: 0, multi: 0, pierce: 0 },
-                         banner: null, impact: 0, glow: 0, timeAlive: 0, itemDropMisses: 0, nextItemDropAt: 0 });
+                         banner: null, impact: 0, glow: 0, timeAlive: 0, itemDropMisses: 0, nextItemDropAt: 0, paused: false });
   state.zone.x = state.zone.target = W / 2; state.zone.vx = 0;
   state.balls = [newBall(W / 2, B - R - 40, rand(-0.5, 0.5), BASE_SPEED)];
   spawnWave(1);
   document.getElementById('start').classList.add('hidden');
   document.getElementById('over').classList.add('hidden');
+  document.getElementById('pause').classList.add('hidden');
+  document.getElementById('pauseBtn').classList.remove('hidden');
   showBanner('WAVE 1', '', 1.2);
 }
-function endGame() {
+function endGame(title = 'TIME UP') {
   state.mode = 'over';
+  document.getElementById('pauseBtn').classList.add('hidden');
+  document.getElementById('overTitle').textContent = title;
   if (state.score > state.best) { state.best = state.score; localStorage.setItem('rbb_best', state.best); }
   document.getElementById('finalScore').textContent = state.score.toLocaleString();
   document.getElementById('finalBest').textContent = 'BEST ' + state.best.toLocaleString();
@@ -137,6 +142,31 @@ function endGame() {
   document.getElementById('over').classList.remove('hidden');
 }
 function showBanner(text, sub, dur) { state.banner = { text, sub, t: 0, dur }; }
+// ---------------------------------------------------------------- pause
+function setPaused(on) {
+  if (state.mode !== 'playing' || state.paused === on) return;
+  state.paused = on;
+  state.keys = {};   // a key held across the pause must not keep the deflector moving afterwards
+  document.getElementById('pause').classList.toggle('hidden', !on);
+  document.getElementById('pauseBtn').textContent = on ? '▶' : '❚❚';
+}
+function togglePause() { setPaused(!state.paused); }
+// finish from the pause screen: the run ends now with its current score, exactly as if the clock had hit zero
+function finishGame() {
+  if (state.mode !== 'playing') return;
+  setPaused(false);
+  endGame('FINISHED');
+}
+// quit from the pause screen: back to the title with the idle demo, the run is discarded (no best-score update)
+function quitGame() {
+  if (state.mode !== 'playing') return;
+  setPaused(false);
+  state.mode = 'ready';
+  state.banner = null; state.items = []; state.popups = []; state.particles = [];
+  state.effects = { speed: 0, blast: 0, multi: 0, pierce: 0 };
+  document.getElementById('pauseBtn').classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');
+}
 function popup(x, y, text, color = '#fff', size = 18) { state.popups.push({ x, y, text, color, size, t: 0 }); }
 
 // ---------------------------------------------------------------- input
@@ -151,11 +181,21 @@ canvas.addEventListener('touchmove', e => { e.preventDefault(); state.zone.targe
 window.addEventListener('keydown', e => {
   state.keys[e.key] = true;
   if (e.key === 'm' || e.key === 'M') toggleMute();
-  if ((e.key === ' ' || e.key === 'Enter') && state.mode !== 'playing') startGame();
+  if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
+  if (e.key === ' ' || e.key === 'Enter') {
+    if (state.mode !== 'playing') startGame();
+    else if (state.paused) setPaused(false);
+  }
 });
 window.addEventListener('keyup', e => { state.keys[e.key] = false; });
 document.getElementById('startBtn').addEventListener('click', startGame);
 document.getElementById('retryBtn').addEventListener('click', startGame);
+document.getElementById('resumeBtn').addEventListener('click', () => setPaused(false));
+document.getElementById('finishBtn').addEventListener('click', finishGame);
+document.getElementById('quitBtn').addEventListener('click', quitGame);
+document.getElementById('pauseBtn').addEventListener('click', e => { togglePause(); e.target.blur(); });
+// switching tabs mid-run: coming back should not drop the player straight onto a ball already in flight
+document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
 function toggleMute() { document.getElementById('mute').textContent = sound.toggleMute() ? '🔇' : '🔊'; }
 document.getElementById('mute').addEventListener('click', e => { initAudio(); toggleMute(); e.target.blur(); });
 
@@ -386,6 +426,7 @@ function updateItems(dt) {
 }
 
 function update(dt) {
+  if (state.paused) return;
   // deflector movement (keys or pointer)
   const z = state.zone;
   const kdir = (state.keys['ArrowRight'] || state.keys['d'] || state.keys['D'] ? 1 : 0) - (state.keys['ArrowLeft'] || state.keys['a'] || state.keys['A'] ? 1 : 0);

@@ -3,11 +3,11 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 
-const element = { addEventListener() {}, style: {}, classList: { add() {}, remove() {} } };
+const element = { addEventListener() {}, style: {}, classList: { add() {}, remove() {}, toggle() {} } };
 const math = Object.create(Math);
 const context = vm.createContext({
   window: { addEventListener() {}, innerWidth: 600, innerHeight: 880 },
-  document: { getElementById: () => element },
+  document: { getElementById: () => element, addEventListener() {} },
   localStorage: { getItem: () => null }, performance: { now: () => 0 },
   requestAnimationFrame() {}, Math: math,
 });
