@@ -25,7 +25,10 @@ const STEEL_FROM_WAVE = 3, STEEL_STEP = 2, STEEL_MAX = 6;
 const STEEL_COLOR = { name: 'steel', base: '#aab1b8', light: '#d6dbe0', dark: '#5b626a' };
 // ---------------------------------------------------------------- items
 // dropped by broken blocks; caught on the deflector, lost on the plain rail
-const ITEM_DROP_CHANCE = 0.15;
+const ITEM_DROP_CHANCE = 0.20;
+const ITEM_DROP_PITY = 10;         // guarantee a drop on the tenth eligible break
+const ITEM_DROP_COOLDOWN = 1.25;   // seconds between drops, including BLAST splash kills
+const MAX_FALLING_ITEMS = 3;
 const ITEM_W = 40, ITEM_H = 22;
 const ITEM_GRAVITY = 420, ITEM_MAX_FALL = 300;
 const MAX_MULTI_BALLS = 12;        // hard cap while the x2 effect stacks
@@ -50,5 +53,5 @@ const PALETTE = [
 ];
 
 return { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, REGROW_PER_HP,
-         STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE };
+         STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_DROP_PITY, ITEM_DROP_COOLDOWN, MAX_FALLING_ITEMS, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE };
 })();

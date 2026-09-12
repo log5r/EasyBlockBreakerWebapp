@@ -3,7 +3,7 @@
 'use strict';
 
 const { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, REGROW_PER_HP,
-        STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE } = window.RealBlockBreaker;
+        STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_DROP_PITY, ITEM_DROP_COOLDOWN, MAX_FALLING_ITEMS, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE } = window.RealBlockBreaker;
 const canvas = document.getElementById('c');
 const sound = window.RealBlockBreaker.createAudio();
 const { initAudio, sfx } = sound;
@@ -20,6 +20,7 @@ const state = {
   banner: null, keys: {},
   impact: 0, glow: 0, hitColor: null,   // impact = pulse added per break; glow eases after it (LED flare + soft flash)
   timeAlive: 0,
+  itemDropMisses: 0, nextItemDropAt: 0,
 };
 
 function newBall(x, y, angle, speed, temp = false) {
@@ -118,7 +119,7 @@ function startGame() {
   initAudio();
   Object.assign(state, { mode: 'playing', score: 0, time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
                          particles: [], popups: [], items: [], effects: { speed: 0, blast: 0, multi: 0, pierce: 0 },
-                         banner: null, impact: 0, glow: 0, timeAlive: 0 });
+                         banner: null, impact: 0, glow: 0, timeAlive: 0, itemDropMisses: 0, nextItemDropAt: 0 });
   state.zone.x = state.zone.target = W / 2; state.zone.vx = 0;
   state.balls = [newBall(W / 2, B - R - 40, rand(-0.5, 0.5), BASE_SPEED)];
   spawnWave(1);
@@ -182,7 +183,7 @@ function hitBlock(bl, b, nx, ny, splash = false) {
     spawnSplinters(bl, px, py, 14);
     sfx('tile', 1);
     state.impact = Math.min(1, state.impact + 0.35); state.hitColor = bl.color;
-    if (state.mode === 'playing' && Math.random() < ITEM_DROP_CHANCE) spawnItem(bl.x + bl.w / 2, bl.y + bl.h / 2);
+    tryDropItem(bl.x + bl.w / 2, bl.y + bl.h / 2);
     if (!splash && state.effects.blast > 0) blast(bl, b);
   } else {
     spawnSplinters(bl, px, py, 5);
@@ -322,6 +323,15 @@ function ballBallCollisions() {
 }
 
 // ---------------------------------------------------------------- items & power-ups
+function tryDropItem(x, y) {
+  // Suppressed breaks do not consume rolls or build up a guaranteed drop.
+  if (state.mode !== 'playing' || state.timeAlive < state.nextItemDropAt || state.items.length >= MAX_FALLING_ITEMS) return;
+  state.itemDropMisses++;
+  if (state.itemDropMisses < ITEM_DROP_PITY && Math.random() >= ITEM_DROP_CHANCE) return;
+  spawnItem(x, y);
+  state.itemDropMisses = 0;
+  state.nextItemDropAt = state.timeAlive + ITEM_DROP_COOLDOWN;
+}
 function spawnItem(x, y) {
   const keys = Object.keys(ITEMS), type = keys[Math.floor(Math.random() * keys.length)];
   state.items.push({ type, x: clamp(x, L + ITEM_W / 2, Rgt - ITEM_W / 2), y, vy: rand(-60, 20), t: 0 });
