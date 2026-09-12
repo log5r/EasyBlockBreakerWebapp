@@ -208,6 +208,22 @@ function setFlashFx(on) {
 }
 for (const el of flashToggles) el.addEventListener('change', e => { setFlashFx(e.target.checked); e.target.blur(); });
 setFlashFx(state.flashFx);
+// volume slider: same arrangement as the flash toggle (title + pause screen, synced, remembered). Releasing the slider plays a
+// deflector ping so the new level can be judged without leaving the menu
+const volumeSliders = [...document.querySelectorAll('.volumeSlider')], volumeValues = [...document.querySelectorAll('.volumeValue')];
+function setVolume(pct) {
+  pct = clamp(Math.round(pct), 0, 100);
+  sound.setVolume(pct / 100);
+  localStorage.setItem('rbb_volume', pct);
+  for (const el of volumeSliders) el.value = pct;
+  for (const el of volumeValues) el.textContent = pct + '%';
+}
+for (const el of volumeSliders) {
+  el.addEventListener('input', e => setVolume(+e.target.value));
+  el.addEventListener('change', () => { initAudio(); sfx('metal', 0.9); });
+  el.addEventListener('pointerup', e => e.target.blur());   // not on change: arrow keys fire change per step and must keep focus
+}
+setVolume(localStorage.getItem('rbb_volume') === null ? 100 : +localStorage.getItem('rbb_volume'));
 document.getElementById('mute').addEventListener('click', e => { initAudio(); toggleMute(); e.target.blur(); });
 
 // ---------------------------------------------------------------- physics

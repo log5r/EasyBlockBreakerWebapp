@@ -29,6 +29,7 @@ Written in plain HTML / CSS / JavaScript (Canvas 2D + Web Audio API) — no buil
 | Start / retry | <kbd>Space</kbd> / <kbd>Enter</kbd> or the on-screen button |
 | Pause / resume | <kbd>P</kbd> / <kbd>Esc</kbd> or the button in the top-right corner (auto-pauses when the tab is hidden); the pause screen also lets you finish now (results screen with the current score) or quit to the title without saving |
 | Toggle mute | <kbd>M</kbd> or the button in the top-right corner |
+| Volume | Slider on the title screen and the pause screen (remembered in `localStorage`) |
 
 ## Running
 
