@@ -15,7 +15,7 @@ Written in plain HTML / CSS / JavaScript (Canvas 2D + Web Audio API) — no buil
 - From wave 3 on, **steel blocks** (riveted stainless slabs) are mixed into the layout. They can never be broken, only bounce the ball, and don't count toward the clear quota (PIERCE doesn't go through them either). One more appears every 2 waves, up to 6. They are only placed where they **don't split the board into more connected regions** — i.e. they never seal off a pocket the ball can't get into — so an unclearable wave is impossible.
 - Broken blocks occasionally drop an **item**. Catch it on the deflector to activate a timed power-up; items that land on any other part of the bottom wall vanish.
   - **SPEED** (8 s): the balls move much faster.
-  - **BIG** (10 s): the balls grow larger.
+  - **BLAST** (10 s): every cube that breaks sends out a shockwave that deals one hit to each edge-adjacent cube (cubes broken by the shockwave don't chain).
   - **x2** (10 s): the number of balls doubles (the extra balls disappear when it wears off).
   - **PIERCE** (8 s): the balls pass straight through blocks (each block takes one hit per pass) and only bounce off the walls.
 - Your best score is saved in the browser's `localStorage`.

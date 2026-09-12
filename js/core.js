@@ -29,9 +29,10 @@ const ITEM_DROP_CHANCE = 0.15;
 const ITEM_W = 40, ITEM_H = 22;
 const ITEM_GRAVITY = 420, ITEM_MAX_FALL = 300;
 const MAX_MULTI_BALLS = 12;        // hard cap while the x2 effect stacks
+// LED colours are spread around the hue wheel so the chips read at a glance: cyan / red / yellow / violet
 const ITEMS = {
-  speed: { label: 'SPEED', color: '#ff8a4a', dur: 8,  speedMul: 1.6, maxMul: 1.4 },
-  big:   { label: 'BIG',   color: '#5fd6ff', dur: 10, radiusMul: 1.8 },
+  speed: { label: 'SPEED', color: '#5fd6ff', dur: 8,  speedMul: 1.6, maxMul: 1.4 },
+  blast: { label: 'BLAST', color: '#ff5a3c', dur: 10 },   // a breaking cube also deals one hit to each edge-neighbour (no chain reaction)
   multi: { label: 'x2',    color: '#ffd84f', dur: 10 },
   pierce:{ label: 'PIERCE',color: '#c46bff', dur: 8 },   // balls pass through cubes (one hit each) and only bounce off walls
 };

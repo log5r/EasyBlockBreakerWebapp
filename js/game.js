@@ -16,22 +16,21 @@ const state = {
   waveBroken: 0, waveQuota: 0,   // cubes broken this wave / breaks needed to clear it
   zone: { x: W / 2, target: W / 2, vx: 0, flash: 0 },
   balls: [], blocks: [], particles: [], popups: [], items: [],
-  effects: { speed: 0, big: 0, multi: 0, pierce: 0 },   // seconds left on each power-up
+  effects: { speed: 0, blast: 0, multi: 0, pierce: 0 },   // seconds left on each power-up
   banner: null, keys: {},
   impact: 0, glow: 0, hitColor: null,   // impact = pulse added per break; glow eases after it (LED flare + soft flash)
   timeAlive: 0,
 };
 
 function newBall(x, y, angle, speed, temp = false) {
-  return { x, y, vx: Math.sin(angle) * speed, vy: -Math.cos(angle) * speed, r: ballRadius(), stuckT: 0, trail: [], temp, passing: [] };   // passing = cubes currently being pierced
+  return { x, y, vx: Math.sin(angle) * speed, vy: -Math.cos(angle) * speed, r: R, stuckT: 0, trail: [], temp, passing: [] };   // passing = cubes currently being pierced
 }
 function ballSpeed(b) { return Math.hypot(b.vx, b.vy); }
 function setSpeed(b, s) { const cur = ballSpeed(b) || 1; b.vx *= s / cur; b.vy *= s / cur; }
 function multiplier() { return 1 + Math.min(7, Math.floor(state.combo / 4)); }
-// power-ups scale the speed band / radius while their timer runs
+// power-ups scale the speed band while their timer runs
 function baseSpeed() { return Math.min(MAX_SPEED * 0.8, BASE_SPEED + (state.wave - 1) * 25) * (state.effects.speed > 0 ? ITEMS.speed.speedMul : 1); }
 function maxSpeed() { return MAX_SPEED * (state.effects.speed > 0 ? ITEMS.speed.maxMul : 1); }
-function ballRadius() { return R * (state.effects.big > 0 ? ITEMS.big.radiusMul : 1); }
 function permanentBalls() { return state.balls.filter(b => !b.temp).length; }
 
 // ---------------------------------------------------------------- block layouts
@@ -118,7 +117,7 @@ function spawnWave(wave) {
 function startGame() {
   initAudio();
   Object.assign(state, { mode: 'playing', score: 0, time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
-                         particles: [], popups: [], items: [], effects: { speed: 0, big: 0, multi: 0, pierce: 0 },
+                         particles: [], popups: [], items: [], effects: { speed: 0, blast: 0, multi: 0, pierce: 0 },
                          banner: null, impact: 0, glow: 0, timeAlive: 0 });
   state.zone.x = state.zone.target = W / 2; state.zone.vx = 0;
   state.balls = [newBall(W / 2, B - R - 40, rand(-0.5, 0.5), BASE_SPEED)];
@@ -160,8 +159,9 @@ function toggleMute() { document.getElementById('mute').textContent = sound.togg
 document.getElementById('mute').addEventListener('click', e => { initAudio(); toggleMute(); e.target.blur(); });
 
 // ---------------------------------------------------------------- physics
-function hitBlock(bl, b, nx, ny) {
-  const px = clamp(b.x, bl.x, bl.x + bl.w), py = clamp(b.y, bl.y, bl.y + bl.h);
+// splash = hit dealt by a BLAST shockwave rather than the ball itself: no speed kick, and it never blasts again
+function hitBlock(bl, b, nx, ny, splash = false) {
+  const px = splash ? bl.x + bl.w / 2 : clamp(b.x, bl.x, bl.x + bl.w), py = splash ? bl.y + bl.h / 2 : clamp(b.y, bl.y, bl.y + bl.h);
   if (bl.steel) {
     // solid steel: a heavy clang and a shower of sparks, nothing else changes (the combo survives)
     bl.flash = 1;
@@ -183,12 +183,28 @@ function hitBlock(bl, b, nx, ny) {
     sfx('tile', 1);
     state.impact = Math.min(1, state.impact + 0.35); state.hitColor = bl.color;
     if (state.mode === 'playing' && Math.random() < ITEM_DROP_CHANCE) spawnItem(bl.x + bl.w / 2, bl.y + bl.h / 2);
+    if (!splash && state.effects.blast > 0) blast(bl, b);
   } else {
     spawnSplinters(bl, px, py, 5);
     sfx('tile', 0.6);
   }
   // tiny speed kick on impact keeps things lively
-  setSpeed(b, clamp(ballSpeed(b) + 6, MIN_SPEED, maxSpeed()));
+  if (!splash) setSpeed(b, clamp(ballSpeed(b) + 6, MIN_SPEED, maxSpeed()));
+}
+// BLAST: the shockwave of a breaking cube deals one hit to every cube sharing an edge with it.
+// Splash hits can break cubes but never blast in turn, so a single break clears at most a plus shape.
+function blast(bl, b) {
+  const cx = bl.x + bl.w / 2, cy = bl.y + bl.h / 2;
+  state.particles.push({ x: cx, y: cy, shock: true, t: 0, life: 0.4 });
+  spawnSparks(cx, cy, 10);
+  sfx('blast');
+  state.impact = Math.min(1, state.impact + 0.3);
+  for (const o of state.blocks) {
+    if (o === bl || !o.active || o.dead || o.steel) continue;
+    const sameRow = Math.abs(o.y - bl.y) < 0.5 && Math.abs(o.x - bl.x) <= bl.w + 0.5;
+    const sameCol = Math.abs(o.x - bl.x) < 0.5 && Math.abs(o.y - bl.y) <= bl.h + 0.5;
+    if (sameRow || sameCol) hitBlock(o, b, 0, 0, true);
+  }
 }
 function spawnSparks(px, py, n) {
   for (let i = 0; i < n; i++) {
@@ -211,7 +227,7 @@ function ballOverlaps(b, bl) {
 }
 function stepBall(b, dt) {
   b.x += b.vx * dt; b.y += b.vy * dt;
-  const R = b.r;   // radius grows under the BIG power-up
+  const R = b.r;
   let hitWall = false;
 
   // side & top walls
@@ -312,7 +328,7 @@ function spawnItem(x, y) {
 }
 function applyItem(type) {
   const def = ITEMS[type], fx = state.effects;
-  fx[type] = def.dur;   // timer first so baseSpeed() / ballRadius() already read the boost below
+  fx[type] = def.dur;   // timer first so baseSpeed() already reads the boost below
   if (type === 'multi') {
     // double the current set (temp balls included, so it stacks) up to a hard cap
     const src = state.balls.slice();
@@ -320,7 +336,7 @@ function applyItem(type) {
       if (state.balls.length >= MAX_MULTI_BALLS) break;
       const a = Math.atan2(b.vy, b.vx) + (Math.random() < 0.5 ? 0.6 : -0.6), sp = ballSpeed(b);
       const nb = newBall(b.x, b.y, 0, sp, true);
-      nb.vx = Math.cos(a) * sp; nb.vy = Math.sin(a) * sp; nb.r = b.r;
+      nb.vx = Math.cos(a) * sp; nb.vy = Math.sin(a) * sp;
       state.balls.push(nb);
     }
   } else if (type === 'speed') {
@@ -393,13 +409,10 @@ function update(dt) {
   updateItems(dt);
 
   // balls: substep so fast balls never tunnel
-  const targetR = ballRadius();
   for (const b of state.balls) {
     const s = ballSpeed(b);
     // roll friction toward base speed
     setSpeed(b, lerp(s, baseSpeed(), 1 - Math.pow(0.75, dt)));
-    // radius eases toward the BIG target so the ball swells / shrinks instead of popping
-    b.r = lerp(b.r, targetR, 1 - Math.pow(0.002, dt));
     const n = Math.max(1, Math.ceil(ballSpeed(b) * dt / (b.r * 0.5)));
     for (let i = 0; i < n; i++) stepBall(b, dt / n);
     b.trail.unshift({ x: b.x, y: b.y }); if (b.trail.length > 6) b.trail.pop();
@@ -425,7 +438,7 @@ function update(dt) {
   // particles / popups / banner
   for (const p of state.particles) {
     p.t += dt;
-    if (!p.ring) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= Math.pow(0.02, dt); p.vy *= Math.pow(0.02, dt); p.rot += p.vr * dt; }
+    if (!p.ring && !p.shock) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= Math.pow(0.02, dt); p.vy *= Math.pow(0.02, dt); p.rot += p.vr * dt; }
   }
   state.particles = state.particles.filter(p => p.t < p.life);
   for (const p of state.popups) p.t += dt;

@@ -68,6 +68,18 @@ function sfx(kind, vol = 1) {
       og.gain.setValueAtTime(0.0001, s); og.gain.linearRampToValueAtTime(0.12 * vol, s + 0.01); og.gain.exponentialRampToValueAtTime(0.001, s + 0.25);
       o.connect(og); og.connect(audio.destination); o.start(s); o.stop(s + 0.3);
     });
+  } else if (kind === 'blast') {
+    // BLAST shockwave: low thump under a pitch-dropping boom
+    if (!_noise) _noise = noiseBuffer();
+    const src = audio.createBufferSource(); src.buffer = _noise;
+    const f = audio.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(1800, t); f.frequency.exponentialRampToValueAtTime(200, t + 0.25);
+    src.connect(f); f.connect(g);
+    g.gain.setValueAtTime(0.6 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    src.start(t); src.stop(t + 0.3);
+    const o = audio.createOscillator(); const og = audio.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.3);
+    og.gain.setValueAtTime(0.4 * vol, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+    o.connect(og); og.connect(audio.destination); o.start(t); o.stop(t + 0.35);
   } else if (kind === 'clear') {
     [523, 659, 784, 1047].forEach((f, i) => {
       const o = audio.createOscillator(); const og = audio.createGain();

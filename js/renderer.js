@@ -247,6 +247,13 @@ function drawBall(b) {
     ctx.fillStyle = '#c8ccd0'; ctx.beginPath(); ctx.arc(t.x, t.y, R, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
+  // BLAST: red-hot ember halo, flickering like a fuse
+  if (state.effects.blast > 0) {
+    const flick = 0.6 + 0.4 * Math.abs(Math.sin(performance.now() / 55));
+    const hg = ctx.createRadialGradient(x, y, R * 0.7, x, y, R * 2.0);
+    hg.addColorStop(0, `rgba(255,90,60,${0.5 * flick})`); hg.addColorStop(0.6, `rgba(255,140,60,${0.2 * flick})`); hg.addColorStop(1, 'rgba(255,90,60,0)');
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(x, y, R * 2.0, 0, Math.PI * 2); ctx.fill();
+  }
   // PIERCE: violet plasma halo so it reads as "passes through"
   if (state.effects.pierce > 0) {
     const pulse = 0.7 + 0.3 * Math.sin(performance.now() / 90);
@@ -287,6 +294,12 @@ function drawBall(b) {
     ctx.save(); ctx.shadowColor = ITEMS.pierce.color; ctx.shadowBlur = 10;
     ctx.strokeStyle = 'rgba(214,160,255,.9)'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(x, y, R + 1, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  if (state.effects.blast > 0) {
+    ctx.save(); ctx.shadowColor = ITEMS.blast.color; ctx.shadowBlur = 10;
+    ctx.strokeStyle = 'rgba(255,120,90,.9)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, R + (state.effects.pierce > 0 ? 3.5 : 1), 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
 }
@@ -342,6 +355,15 @@ function drawParticles() {
     if (p.ring) {
       ctx.globalAlpha = k * 0.7; ctx.strokeStyle = '#ffe9a8'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(p.x, p.y, 6 + (1 - k) * 40, Math.PI, Math.PI * 2); ctx.stroke();
+      continue;
+    }
+    if (p.shock) {
+      // BLAST shockwave: a hot ring bursting outward with a soft orange flash inside
+      const r = 8 + (1 - k) * 70;
+      ctx.globalAlpha = k * 0.35; ctx.fillStyle = '#ff8a4a';
+      ctx.beginPath(); ctx.arc(p.x, p.y, r * 0.8, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = k * 0.9; ctx.strokeStyle = '#fff1c8'; ctx.lineWidth = 3 * k + 1;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.stroke();
       continue;
     }
     ctx.save(); ctx.globalAlpha = k; ctx.translate(p.x, p.y); ctx.rotate(p.rot);
