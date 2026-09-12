@@ -18,6 +18,7 @@ Thumbs.db
 
 # Node.js(将来ツールを導入した場合)
 node_modules/
+.wrangler/
 dist/
 .env
 .env.*

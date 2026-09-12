@@ -41,6 +41,17 @@ python3 -m http.server 8765
 
 その後 http://localhost:8765/ を開いてください。
 
+## Cloudflareへのデプロイ
+
+Node.js 22以降とCloudflareアカウントが必要です。
+
+```bash
+npx wrangler@4.131.1 login
+npx wrangler@4.131.1 deploy
+```
+
+`wrangler.jsonc` で `easy-block-breaker` Workerを設定しています。デプロイ時に `scripts/prepare-deploy.cjs` がゲーム本体とライセンスだけを `dist/` にコピーし、`workers.dev` 上に静的ファイルとして公開します。
+
 ## ファイル構成
 
 ```

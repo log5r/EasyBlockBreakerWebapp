@@ -41,6 +41,17 @@ python3 -m http.server 8765
 
 Then open http://localhost:8765/.
 
+## Deploy to Cloudflare
+
+Requires Node.js 22 or later and a Cloudflare account:
+
+```bash
+npx wrangler@4.131.1 login
+npx wrangler@4.131.1 deploy
+```
+
+`wrangler.jsonc` configures the `easy-block-breaker` Worker. Deployment automatically runs `scripts/prepare-deploy.cjs` to copy only the game files and license into `dist/`, then publishes them as static assets on `workers.dev`.
+
 ## Project layout
 
 ```
