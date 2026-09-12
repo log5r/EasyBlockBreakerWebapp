@@ -28,6 +28,7 @@ const ITEMS = {
   speed: { label: 'SPEED', color: '#ff8a4a', dur: 8,  speedMul: 1.6, maxMul: 1.4 },
   big:   { label: 'BIG',   color: '#5fd6ff', dur: 10, radiusMul: 1.8 },
   multi: { label: 'x2',    color: '#ffd84f', dur: 10 },
+  pierce:{ label: 'PIERCE',color: '#c46bff', dur: 8 },   // balls pass through cubes (one hit each) and only bounce off walls
 };
 // ---------------------------------------------------------------- utils
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;

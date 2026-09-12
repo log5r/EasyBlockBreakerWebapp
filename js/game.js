@@ -16,14 +16,14 @@ const state = {
   waveBroken: 0, waveQuota: 0,   // cubes broken this wave / breaks needed to clear it
   zone: { x: W / 2, target: W / 2, vx: 0, flash: 0 },
   balls: [], blocks: [], particles: [], popups: [], items: [],
-  effects: { speed: 0, big: 0, multi: 0 },   // seconds left on each power-up
+  effects: { speed: 0, big: 0, multi: 0, pierce: 0 },   // seconds left on each power-up
   banner: null, keys: {},
   impact: 0, glow: 0, hitColor: null,   // impact = pulse added per break; glow eases after it (LED flare + soft flash)
   timeAlive: 0,
 };
 
 function newBall(x, y, angle, speed, temp = false) {
-  return { x, y, vx: Math.sin(angle) * speed, vy: -Math.cos(angle) * speed, r: ballRadius(), stuckT: 0, trail: [], temp };
+  return { x, y, vx: Math.sin(angle) * speed, vy: -Math.cos(angle) * speed, r: ballRadius(), stuckT: 0, trail: [], temp, passing: [] };   // passing = cubes currently being pierced
 }
 function ballSpeed(b) { return Math.hypot(b.vx, b.vy); }
 function setSpeed(b, s) { const cur = ballSpeed(b) || 1; b.vx *= s / cur; b.vy *= s / cur; }
@@ -77,7 +77,7 @@ function spawnWave(wave) {
 function startGame() {
   initAudio();
   Object.assign(state, { mode: 'playing', score: 0, time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
-                         particles: [], popups: [], items: [], effects: { speed: 0, big: 0, multi: 0 },
+                         particles: [], popups: [], items: [], effects: { speed: 0, big: 0, multi: 0, pierce: 0 },
                          banner: null, impact: 0, glow: 0, timeAlive: 0 });
   state.zone.x = state.zone.target = W / 2; state.zone.vx = 0;
   state.balls = [newBall(W / 2, B - R - 40, rand(-0.5, 0.5), BASE_SPEED)];
@@ -149,6 +149,10 @@ function spawnSplinters(bl, px, py, n) {
   }
 }
 
+function ballOverlaps(b, bl) {
+  const cx = clamp(b.x, bl.x, bl.x + bl.w), cy = clamp(b.y, bl.y, bl.y + bl.h), dx = b.x - cx, dy = b.y - cy;
+  return dx * dx + dy * dy < b.r * b.r;
+}
 function stepBall(b, dt) {
   b.x += b.vx * dt; b.y += b.vy * dt;
   const R = b.r;   // radius grows under the BIG power-up
@@ -188,6 +192,25 @@ function stepBall(b, dt) {
     b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp;
   }
 
+  // anti-stall: if the ball is nearly horizontal / vertical for too long, nudge it
+  const sp = ballSpeed(b);
+  if (Math.abs(b.vy) < sp * 0.08 || Math.abs(b.vx) < sp * 0.05) b.stuckT += dt; else b.stuckT = 0;
+  if (b.stuckT > 1.5) {
+    const a = Math.atan2(b.vy, b.vx) + (Math.random() < 0.5 ? 0.25 : -0.25);
+    b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; b.stuckT = 0;
+  }
+
+  if (state.effects.pierce > 0) {
+    // PIERCE: no deflection — every cube the ball overlaps takes one hit per pass and the ball keeps going until a wall
+    for (const bl of state.blocks) {
+      if (!bl.active || bl.dead || !ballOverlaps(b, bl) || b.passing.includes(bl)) continue;
+      b.passing.push(bl);
+      hitBlock(bl, b, 0, 0);
+    }
+    b.passing = b.passing.filter(bl => bl.active && !bl.dead && ballOverlaps(b, bl));
+    return;
+  }
+
   // blocks: cubes touch each other, so resolve against the deepest overlap only —
   // otherwise a neighbour's corner could deflect a ball that hit a flat shared face
   let hit = null, hcx = 0, hcy = 0, hd2 = R * R;
@@ -211,13 +234,6 @@ function stepBall(b, dt) {
     hitBlock(bl, b, nx, ny);
   }
 
-  // anti-stall: if the ball is nearly horizontal / vertical for too long, nudge it
-  const sp = ballSpeed(b);
-  if (Math.abs(b.vy) < sp * 0.08 || Math.abs(b.vx) < sp * 0.05) b.stuckT += dt; else b.stuckT = 0;
-  if (b.stuckT > 1.5) {
-    const a = Math.atan2(b.vy, b.vx) + (Math.random() < 0.5 ? 0.25 : -0.25);
-    b.vx = Math.cos(a) * sp; b.vy = Math.sin(a) * sp; b.stuckT = 0;
-  }
 }
 function ballBallCollisions() {
   const bs = state.balls;
@@ -258,6 +274,7 @@ function applyItem(type) {
 }
 function endEffect(type) {
   if (type === 'multi') state.balls = state.balls.filter(b => !b.temp);
+  if (type === 'pierce') for (const b of state.balls) b.passing = [];   // a ball still inside a cube gets pushed out by the normal collision
 }
 function updateItems(dt) {
   const z = state.zone;

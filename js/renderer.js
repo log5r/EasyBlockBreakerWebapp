@@ -222,6 +222,13 @@ function drawBall(b) {
     ctx.fillStyle = '#c8ccd0'; ctx.beginPath(); ctx.arc(t.x, t.y, R, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
+  // PIERCE: violet plasma halo so it reads as "passes through"
+  if (state.effects.pierce > 0) {
+    const pulse = 0.7 + 0.3 * Math.sin(performance.now() / 90);
+    const hg = ctx.createRadialGradient(x, y, R * 0.6, x, y, R * 2.2);
+    hg.addColorStop(0, `rgba(196,107,255,${0.55 * pulse})`); hg.addColorStop(1, 'rgba(196,107,255,0)');
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(x, y, R * 2.2, 0, Math.PI * 2); ctx.fill();
+  }
   // contact shadow on the board (light comes from upper-left)
   const sg = ctx.createRadialGradient(x + 4, y + 6, R * 0.2, x + 4, y + 6, R * 1.7);
   sg.addColorStop(0, 'rgba(0,0,0,.6)'); sg.addColorStop(0.6, 'rgba(0,0,0,.28)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
@@ -251,6 +258,12 @@ function drawBall(b) {
   // rim light along lower edge
   ctx.strokeStyle = 'rgba(255,250,240,.35)'; ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.arc(x, y, R - 1, 0.35, Math.PI - 0.35); ctx.stroke();
+  if (state.effects.pierce > 0) {
+    ctx.save(); ctx.shadowColor = ITEMS.pierce.color; ctx.shadowBlur = 10;
+    ctx.strokeStyle = 'rgba(214,160,255,.9)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, R + 1, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
 }
 
 // power-up token: a machined chrome chip with a coloured LED label, tumbling as it falls

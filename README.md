@@ -16,6 +16,7 @@ Written in plain HTML / CSS / JavaScript (Canvas 2D + Web Audio API) — no buil
   - **SPEED** (8 s): the balls move much faster.
   - **BIG** (10 s): the balls grow larger.
   - **x2** (10 s): the number of balls doubles (the extra balls disappear when it wears off).
+  - **PIERCE** (8 s): the balls pass straight through blocks (each block takes one hit per pass) and only bounce off the walls.
 - Your best score is saved in the browser's `localStorage`.
 
 ### Controls
