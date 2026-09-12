@@ -353,21 +353,27 @@ function drawHUD() {
     ctx.restore();
   };
   const t = Math.ceil(state.time);
-  plate(12, 190, 'SCORE', state.score.toLocaleString());
-  plate(212, 110, 'TIME', t.toString(), t <= 10 && state.mode === 'playing' && (Math.floor(state.time * 4) % 2 === 0) ? '#ff5a4a' : t <= 10 ? '#ffb1a8' : LED_BLUE);
+  // plate layout: BEST lives inside the SCORE plate as a small caption so 6-7 digit scores never overflow
+  const SX = 12, SW = 284, TX = 306, TW = 110, CX = 426, CW = 86, WX = 522, WW = 66;
+  plate(SX, SW, 'SCORE', state.score.toLocaleString());
+  plate(TX, TW, 'TIME', t.toString(), t <= 10 && state.mode === 'playing' && (Math.floor(state.time * 4) % 2 === 0) ? '#ff5a4a' : t <= 10 ? '#ffb1a8' : LED_BLUE);
   // COMBO: big digits = hit count (+1 per hit), small badge = score multiplier, bar = progress to next multiplier
-  plate(332, 86, 'COMBO', state.combo.toString(), state.combo > 0 ? '#ffffff' : LED_BLUE);
-  plate(428, 66, 'WAVE', state.wave.toString());
-  plate(504, 84, 'BEST', state.best.toLocaleString(), '#a9c8dc');
+  plate(CX, CW, 'COMBO', state.combo.toString(), state.combo > 0 ? '#ffffff' : LED_BLUE);
+  plate(WX, WW, 'WAVE', state.wave.toString());
+  // BEST: small caption in the SCORE plate's label row; turns gold while the current run is beating it
+  const beating = state.mode === 'playing' && state.score > 0 && state.score >= state.best;
+  ctx.textAlign = 'right'; ctx.font = '700 10px "JetBrains Mono", "Menlo", "SF Mono", Consolas, monospace';
+  ctx.fillStyle = beating ? '#ffd27a' : '#a9c8dc';
+  ctx.fillText('BEST ' + state.best.toLocaleString(), SX + SW - 9, 12 + 12);
   if (state.mode === 'playing') {
     ctx.textAlign = 'right'; ctx.font = '700 10px "JetBrains Mono", "Menlo", "SF Mono", Consolas, monospace';
     ctx.fillStyle = multiplier() > 1 ? '#ffd27a' : '#6f8aa6';
-    ctx.fillText('x' + multiplier(), 332 + 86 - 9, 12 + 12);
-    const cx = 332 + 8, cw = 86 - 16, cy = HUD_H - 15;
+    ctx.fillText('x' + multiplier(), CX + CW - 9, 12 + 12);
+    const cx = CX + 8, cw = CW - 16, cy = HUD_H - 15;
     ctx.fillStyle = 'rgba(143,216,255,.12)'; ctx.fillRect(cx, cy, cw, 3);
     ctx.fillStyle = LED_BLUE; ctx.fillRect(cx, cy, cw * ((state.combo % 4) / 4), 3);
     // WAVE: bar = breaks toward the clear quota
-    const wx = 428 + 8, ww = 66 - 16;
+    const wx = WX + 8, ww = WW - 16;
     ctx.fillStyle = 'rgba(143,216,255,.12)'; ctx.fillRect(wx, cy, ww, 3);
     ctx.fillStyle = '#ffd27a'; ctx.fillRect(wx, cy, ww * Math.min(1, state.waveBroken / Math.max(1, state.waveQuota)), 3);
   }
