@@ -1,0 +1,44 @@
+# Real Block Breaker
+
+**English** | [日本語](README.ja.md)
+
+A browser game where a silver ball rolls around inside a steel cabinet and you smash as many blocks as you can before time runs out.
+Written in plain HTML / CSS / JavaScript (Canvas 2D + Web Audio API) as a single file — no build step, no dependencies.
+
+## How to play
+
+- The bottom of the playfield is a wall, so the ball never drops out. There are no lives; you compete for score within a **90-second time limit**.
+- Slide the **chrome deflector** on the bottom wall left and right. When the ball hits it, it is launched at an **angle that depends on where it struck**. Use this to steer the ball where you want it.
+- Breaking blocks in a row builds a combo, and every 4 hits raises the score multiplier (up to x8). Hitting any wall other than the deflector breaks the combo.
+- Clearing every block awards bonus points and **extra time (+10 s)**, spawns a new wave of blocks, and adds one more ball (up to 3). Blocks get tougher and balls get faster as the waves go on.
+- Your best score is saved in the browser's `localStorage`.
+
+### Controls
+
+| Action | Input |
+| --- | --- |
+| Move deflector | Mouse / touch, or <kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd> |
+| Start / retry | <kbd>Space</kbd> / <kbd>Enter</kbd> or the on-screen button |
+| Toggle mute | <kbd>M</kbd> or the button in the top-right corner |
+
+## Running
+
+Just open `index.html` in a browser.
+
+To serve it locally instead:
+
+```bash
+python3 -m http.server 8765
+```
+
+Then open http://localhost:8765/.
+
+## Project layout
+
+```
+index.html   The whole game (HTML / CSS / JS in one file)
+```
+
+## License
+
+[MIT License](LICENSE) © 2026 log5
