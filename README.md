@@ -11,6 +11,10 @@ Written in plain HTML / CSS / JavaScript (Canvas 2D + Web Audio API) — no buil
 - Slide the **chrome deflector** on the bottom wall left and right. When the ball hits it, it is launched at an **angle that depends on where it struck**. Use this to steer the ball where you want it.
 - Breaking blocks in a row builds a combo, and every 4 hits raises the score multiplier (up to x8). Hitting any wall other than the deflector breaks the combo.
 - Clearing every block awards bonus points and **extra time (+10 s)**, spawns a new wave of blocks, and adds one more ball (up to 3). Blocks get tougher and balls get faster as the waves go on.
+- Broken blocks occasionally drop an **item**. Catch it on the deflector to activate a timed power-up; items that land on any other part of the bottom wall vanish.
+  - **SPEED** (8 s): the balls move much faster.
+  - **BIG** (10 s): the balls grow larger.
+  - **x2** (10 s): the number of balls doubles (the extra balls disappear when it wears off).
 - Your best score is saved in the browser's `localStorage`.
 
 ### Controls

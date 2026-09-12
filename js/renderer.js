@@ -1,7 +1,7 @@
 window.RealBlockBreaker.createRenderer = function (canvas, state, multiplier) {
 'use strict';
 
-const { W, H, HUD_H, WALL, L, Rgt, T, B, R, ZONE_W, ZONE_MAX_ANGLE, rand } = window.RealBlockBreaker;
+const { W, H, HUD_H, WALL, L, Rgt, T, B, ZONE_W, ZONE_MAX_ANGLE, ITEM_W, ITEM_H, ITEMS, rand } = window.RealBlockBreaker;
 const ctx = canvas.getContext('2d');
 canvas.width = W; canvas.height = H;
 
@@ -197,7 +197,7 @@ function drawZone() {
 }
 
 function drawBall(b) {
-  const x = b.x, y = b.y;
+  const x = b.x, y = b.y, R = b.r;
   // faint motion blur trail
   for (let i = b.trail.length - 1; i >= 1; i--) {
     const t = b.trail[i]; ctx.globalAlpha = 0.05 * (1 - i / b.trail.length);
@@ -233,6 +233,51 @@ function drawBall(b) {
   // rim light along lower edge
   ctx.strokeStyle = 'rgba(255,250,240,.35)'; ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.arc(x, y, R - 1, 0.35, Math.PI - 0.35); ctx.stroke();
+}
+
+// power-up token: a machined chrome chip with a coloured LED label, tumbling as it falls
+function drawItem(it) {
+  const def = ITEMS[it.type], w = ITEM_W, h = ITEM_H;
+  ctx.save();
+  ctx.translate(it.x, it.y); ctx.rotate(Math.sin(it.t * 2.4) * 0.18);
+  // drop shadow on the board
+  ctx.fillStyle = 'rgba(0,0,0,.5)'; roundRect(ctx, -w / 2 + 3, -h / 2 + 5, w, h, 5); ctx.fill();
+  // chrome body
+  const g = ctx.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2);
+  g.addColorStop(0, '#5b6269'); g.addColorStop(0.3, '#dfe4e8'); g.addColorStop(0.5, '#ffffff'); g.addColorStop(0.7, '#c2c8ce'); g.addColorStop(1, '#4d545b');
+  ctx.fillStyle = g; roundRect(ctx, -w / 2, -h / 2, w, h, 5); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1; roundRect(ctx, -w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1, 5); ctx.stroke();
+  // black glass window with the LED label
+  ctx.fillStyle = '#05070c'; roundRect(ctx, -w / 2 + 4, -h / 2 + 4, w - 8, h - 8, 3); ctx.fill();
+  const pulse = 0.75 + 0.25 * Math.sin(it.t * 9);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = '800 11px "JetBrains Mono", "Menlo", "SF Mono", Consolas, monospace';
+  ctx.shadowColor = def.color; ctx.shadowBlur = 8 * pulse; ctx.fillStyle = def.color;
+  ctx.fillText(def.label, 0, 1);
+  ctx.restore();
+}
+// active power-ups: small LED chips with a draining timer bar, bottom-left of the board
+function drawEffects() {
+  const fx = state.effects;
+  let x = L + 10;
+  const y = B - 30, w = 64, h = 20;
+  for (const k in fx) {
+    if (fx[k] <= 0) continue;
+    const def = ITEMS[k], frac = fx[k] / def.dur, blink = fx[k] < 2 && Math.floor(fx[k] * 6) % 2 === 0;
+    ctx.save();
+    ctx.globalAlpha = blink ? 0.45 : 0.9;
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; roundRect(ctx, x, y, w, h, 3); ctx.fill();
+    ctx.strokeStyle = def.color; ctx.lineWidth = 1; roundRect(ctx, x + 0.5, y + 0.5, w - 1, h - 1, 3); ctx.stroke();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.font = '800 10px "JetBrains Mono", "Menlo", "SF Mono", Consolas, monospace';
+    ctx.shadowColor = def.color; ctx.shadowBlur = 6; ctx.fillStyle = def.color;
+    ctx.fillText(def.label, x + 6, y + 8);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,.15)'; ctx.fillRect(x + 6, y + h - 5, w - 12, 2);
+    ctx.fillStyle = def.color; ctx.fillRect(x + 6, y + h - 5, (w - 12) * frac, 2);
+    ctx.restore();
+    x += w + 6;
+  }
 }
 
 function drawParticles() {
@@ -342,7 +387,9 @@ function render() {
   for (const bl of state.blocks) drawBlockShadow(bl);   // shadows first so they never paint over a neighbour
   for (const bl of state.blocks) drawBlock(bl);
   drawParticles();
+  for (const it of state.items) drawItem(it);
   for (const b of state.balls) drawBall(b);
+  drawEffects();
   drawPopups();
   drawImpactFlash();
   ctx.restore();

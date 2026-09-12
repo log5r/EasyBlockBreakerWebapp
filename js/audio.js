@@ -45,6 +45,15 @@ function sfx(kind, vol = 1) {
     const o = audio.createOscillator(); o.type = 'triangle'; o.frequency.value = 2400;
     g.gain.setValueAtTime(0.25 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
     o.connect(g); o.start(t); o.stop(t + 0.07);
+  } else if (kind === 'item') {
+    // power-up pickup: quick rising two-note chime
+    [660, 990].forEach((f, i) => {
+      const o = audio.createOscillator(); const og = audio.createGain();
+      o.type = 'square'; o.frequency.value = f;
+      const s = t + i * 0.07;
+      og.gain.setValueAtTime(0.0001, s); og.gain.linearRampToValueAtTime(0.12 * vol, s + 0.01); og.gain.exponentialRampToValueAtTime(0.001, s + 0.25);
+      o.connect(og); og.connect(audio.destination); o.start(s); o.stop(s + 0.3);
+    });
   } else if (kind === 'clear') {
     [523, 659, 784, 1047].forEach((f, i) => {
       const o = audio.createOscillator(); const og = audio.createGain();

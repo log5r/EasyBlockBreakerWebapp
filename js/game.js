@@ -2,7 +2,8 @@
 (() => {
 'use strict';
 
-const { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, clamp, rand, lerp, PALETTE } = window.RealBlockBreaker;
+const { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS,
+        ITEM_DROP_CHANCE, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE } = window.RealBlockBreaker;
 const canvas = document.getElementById('c');
 const sound = window.RealBlockBreaker.createAudio();
 const { initAudio, sfx } = sound;
@@ -13,19 +14,24 @@ const state = {
   score: 0, best: +(localStorage.getItem('rbb_best') || 0),
   time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
   zone: { x: W / 2, target: W / 2, vx: 0, flash: 0 },
-  balls: [], blocks: [], particles: [], popups: [],
+  balls: [], blocks: [], particles: [], popups: [], items: [],
+  effects: { speed: 0, big: 0, multi: 0 },   // seconds left on each power-up
   banner: null, keys: {},
   impact: 0, glow: 0, hitColor: null,   // impact = pulse added per break; glow eases after it (LED flare + soft flash)
   timeAlive: 0,
 };
 
-function newBall(x, y, angle, speed) {
-  return { x, y, vx: Math.sin(angle) * speed, vy: -Math.cos(angle) * speed, stuckT: 0, trail: [] };
+function newBall(x, y, angle, speed, temp = false) {
+  return { x, y, vx: Math.sin(angle) * speed, vy: -Math.cos(angle) * speed, r: ballRadius(), stuckT: 0, trail: [], temp };
 }
 function ballSpeed(b) { return Math.hypot(b.vx, b.vy); }
 function setSpeed(b, s) { const cur = ballSpeed(b) || 1; b.vx *= s / cur; b.vy *= s / cur; }
 function multiplier() { return 1 + Math.min(7, Math.floor(state.combo / 4)); }
-function baseSpeed() { return Math.min(MAX_SPEED * 0.8, BASE_SPEED + (state.wave - 1) * 25); }
+// power-ups scale the speed band / radius while their timer runs
+function baseSpeed() { return Math.min(MAX_SPEED * 0.8, BASE_SPEED + (state.wave - 1) * 25) * (state.effects.speed > 0 ? ITEMS.speed.speedMul : 1); }
+function maxSpeed() { return MAX_SPEED * (state.effects.speed > 0 ? ITEMS.speed.maxMul : 1); }
+function ballRadius() { return R * (state.effects.big > 0 ? ITEMS.big.radiusMul : 1); }
+function permanentBalls() { return state.balls.filter(b => !b.temp).length; }
 
 // ---------------------------------------------------------------- block layouts
 // Layouts are designed on an 8-column grid; each design cell is split into SUB x SUB cubes
@@ -68,7 +74,8 @@ function spawnWave(wave) {
 function startGame() {
   initAudio();
   Object.assign(state, { mode: 'playing', score: 0, time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
-                         particles: [], popups: [], banner: null, impact: 0, glow: 0, timeAlive: 0 });
+                         particles: [], popups: [], items: [], effects: { speed: 0, big: 0, multi: 0 },
+                         banner: null, impact: 0, glow: 0, timeAlive: 0 });
   state.zone.x = state.zone.target = W / 2; state.zone.vx = 0;
   state.balls = [newBall(W / 2, B - R - 40, rand(-0.5, 0.5), BASE_SPEED)];
   spawnWave(1);
@@ -121,12 +128,13 @@ function hitBlock(bl, b, nx, ny) {
     spawnSplinters(bl, px, py, 14);
     sfx('tile', 1);
     state.impact = Math.min(1, state.impact + 0.35); state.hitColor = bl.color;
+    if (state.mode === 'playing' && Math.random() < ITEM_DROP_CHANCE) spawnItem(bl.x + bl.w / 2, bl.y + bl.h / 2);
   } else {
     spawnSplinters(bl, px, py, 5);
     sfx('tile', 0.6);
   }
   // tiny speed kick on impact keeps things lively
-  setSpeed(b, clamp(ballSpeed(b) + 6, MIN_SPEED, MAX_SPEED));
+  setSpeed(b, clamp(ballSpeed(b) + 6, MIN_SPEED, maxSpeed()));
 }
 function spawnSplinters(bl, px, py, n) {
   for (let i = 0; i < n; i++) {
@@ -138,6 +146,7 @@ function spawnSplinters(bl, px, py, n) {
 
 function stepBall(b, dt) {
   b.x += b.vx * dt; b.y += b.vy * dt;
+  const R = b.r;   // radius grows under the BIG power-up
   let hitWall = false;
 
   // side & top walls
@@ -153,10 +162,10 @@ function stepBall(b, dt) {
         // --- deflector: angle set by where the ball lands, not by incoming direction
         const t = clamp((b.x - z.x) / (ZONE_W / 2), -1, 1);
         const ang = t * ZONE_MAX_ANGLE;
-        const sp = clamp(ballSpeed(b) * 1.10 + 30, MIN_SPEED, MAX_SPEED);
+        const sp = clamp(ballSpeed(b) * 1.10 + 30, MIN_SPEED, maxSpeed());
         b.vx = Math.sin(ang) * sp + z.vx * 0.22;     // slice from moving deflector
         b.vy = -Math.cos(ang) * sp;
-        setSpeed(b, clamp(ballSpeed(b), MIN_SPEED, MAX_SPEED));
+        setSpeed(b, clamp(ballSpeed(b), MIN_SPEED, maxSpeed()));
         z.flash = 1; sfx('metal', 0.9);
         state.particles.push({ x: b.x, y: B, ring: true, t: 0, life: 0.35 });
       } else {
@@ -209,12 +218,65 @@ function ballBallCollisions() {
   const bs = state.balls;
   for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) {
     const a = bs[i], b = bs[j];
-    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
-    if (d >= 2 * R || d === 0) continue;
-    const nx = dx / d, ny = dy / d, overlap = 2 * R - d;
+    const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), rr = a.r + b.r;
+    if (d >= rr || d === 0) continue;
+    const nx = dx / d, ny = dy / d, overlap = rr - d;
     a.x -= nx * overlap / 2; a.y -= ny * overlap / 2; b.x += nx * overlap / 2; b.y += ny * overlap / 2;
     const rvx = b.vx - a.vx, rvy = b.vy - a.vy, vn = rvx * nx + rvy * ny;
     if (vn < 0) { a.vx += vn * nx; a.vy += vn * ny; b.vx -= vn * nx; b.vy -= vn * ny; sfx('clink', 0.7); }
+  }
+}
+
+// ---------------------------------------------------------------- items & power-ups
+function spawnItem(x, y) {
+  const keys = Object.keys(ITEMS), type = keys[Math.floor(Math.random() * keys.length)];
+  state.items.push({ type, x: clamp(x, L + ITEM_W / 2, Rgt - ITEM_W / 2), y, vy: rand(-60, 20), t: 0 });
+}
+function applyItem(type) {
+  const def = ITEMS[type], fx = state.effects;
+  fx[type] = def.dur;   // timer first so baseSpeed() / ballRadius() already read the boost below
+  if (type === 'multi') {
+    // double the current set (temp balls included, so it stacks) up to a hard cap
+    const src = state.balls.slice();
+    for (const b of src) {
+      if (state.balls.length >= MAX_MULTI_BALLS) break;
+      const a = Math.atan2(b.vy, b.vx) + (Math.random() < 0.5 ? 0.6 : -0.6), sp = ballSpeed(b);
+      const nb = newBall(b.x, b.y, 0, sp, true);
+      nb.vx = Math.cos(a) * sp; nb.vy = Math.sin(a) * sp; nb.r = b.r;
+      state.balls.push(nb);
+    }
+  } else if (type === 'speed') {
+    for (const b of state.balls) setSpeed(b, clamp(Math.max(ballSpeed(b), baseSpeed()), MIN_SPEED, maxSpeed()));
+  }
+  popup(state.zone.x, B - 70, def.label + '!', def.color, 20);
+  sfx('item');
+}
+function endEffect(type) {
+  if (type === 'multi') state.balls = state.balls.filter(b => !b.temp);
+}
+function updateItems(dt) {
+  const z = state.zone;
+  for (const it of state.items) {
+    it.t += dt;
+    it.vy = Math.min(it.vy + ITEM_GRAVITY * dt, ITEM_MAX_FALL);
+    it.y += it.vy * dt;
+    if (it.y + ITEM_H / 2 < B) continue;
+    // reached the bottom rail: caught on the deflector or lost
+    it.dead = true;
+    if (Math.abs(it.x - z.x) <= ZONE_W / 2 + ITEM_W / 2) {
+      z.flash = 1;
+      applyItem(it.type);
+      state.particles.push({ x: it.x, y: B, ring: true, t: 0, life: 0.35 });
+    } else {
+      spawnSplinters({ color: { base: ITEMS[it.type].color } }, it.x, B - 4, 6);
+    }
+  }
+  state.items = state.items.filter(it => !it.dead);
+  const fx = state.effects;
+  for (const k in fx) {
+    if (fx[k] <= 0) continue;
+    fx[k] -= dt;
+    if (fx[k] <= 0) { fx[k] = 0; endEffect(k); }
   }
 }
 
@@ -239,17 +301,22 @@ function update(dt) {
     if (bl.wobble > 0) bl.wobble = Math.max(0, bl.wobble - dt * 5);
     if (!bl.active && bl.spawn >= 1) {
       // don't activate on top of a ball
-      const overlap = state.balls.some(b => b.x + R > bl.x - 2 && b.x - R < bl.x + bl.w + 2 && b.y + R > bl.y - 2 && b.y - R < bl.y + bl.h + 2);
+      const overlap = state.balls.some(b => b.x + b.r > bl.x - 2 && b.x - b.r < bl.x + bl.w + 2 && b.y + b.r > bl.y - 2 && b.y - b.r < bl.y + bl.h + 2);
       if (!overlap) bl.active = true;
     }
   }
 
+  updateItems(dt);
+
   // balls: substep so fast balls never tunnel
+  const targetR = ballRadius();
   for (const b of state.balls) {
     const s = ballSpeed(b);
     // roll friction toward base speed
     setSpeed(b, lerp(s, baseSpeed(), 1 - Math.pow(0.75, dt)));
-    const n = Math.max(1, Math.ceil(ballSpeed(b) * dt / (R * 0.5)));
+    // radius eases toward the BIG target so the ball swells / shrinks instead of popping
+    b.r = lerp(b.r, targetR, 1 - Math.pow(0.002, dt));
+    const n = Math.max(1, Math.ceil(ballSpeed(b) * dt / (b.r * 0.5)));
     for (let i = 0; i < n; i++) stepBall(b, dt / n);
     b.trail.unshift({ x: b.x, y: b.y }); if (b.trail.length > 6) b.trail.pop();
   }
@@ -265,7 +332,7 @@ function update(dt) {
     showBanner('ALL CLEAR!', `+${bonus}  +${WAVE_TIME_BONUS}s  →  WAVE ${state.wave}`, 2.0);
     sfx('clear');
     spawnWave(state.wave);
-    if (state.balls.length < MAX_BALLS) {
+    if (permanentBalls() < MAX_BALLS) {
       state.balls.push(newBall(state.zone.x, B - R - 30, rand(-0.6, 0.6), baseSpeed()));
       popup(state.zone.x, B - 70, '+1 BALL', '#ffe9a8', 16);
     }

@@ -14,6 +14,17 @@ const ZONE_W = 150;                // deflector width
 const ZONE_MAX_ANGLE = 68 * Math.PI / 180;
 const TIME_LIMIT = 90;
 const MAX_BALLS = 3;
+// ---------------------------------------------------------------- items
+// dropped by broken blocks; caught on the deflector, lost on the plain rail
+const ITEM_DROP_CHANCE = 0.15;
+const ITEM_W = 40, ITEM_H = 22;
+const ITEM_GRAVITY = 420, ITEM_MAX_FALL = 300;
+const MAX_MULTI_BALLS = 12;        // hard cap while the x2 effect stacks
+const ITEMS = {
+  speed: { label: 'SPEED', color: '#ff8a4a', dur: 8,  speedMul: 1.6, maxMul: 1.4 },
+  big:   { label: 'BIG',   color: '#5fd6ff', dur: 10, radiusMul: 1.8 },
+  multi: { label: 'x2',    color: '#ffd84f', dur: 10 },
+};
 // ---------------------------------------------------------------- utils
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -27,5 +38,6 @@ const PALETTE = [
   { name: 'purple', base: '#7e5aa6', light: '#a98acc', dark: '#4a3266' },
 ];
 
-return { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, clamp, rand, lerp, PALETTE };
+return { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS,
+         ITEM_DROP_CHANCE, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE };
 })();
