@@ -119,12 +119,30 @@ function blockTransform(bl) {
   ctx.translate(-cx, -cy);
   return true;
 }
+// empty socket left by a broken cube: a dark recess that fills with fresh paint as the cube regrows
+function drawSocket(bl) {
+  const x = bl.x, y = bl.y, w = bl.w, h = bl.h, k = Math.min(1, bl.regrow / bl.regrowT);
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
+  ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1; ctx.strokeRect(x + 2.5, y + 2.5, w - 5, h - 5);
+  const fh = (h - 8) * k;
+  ctx.globalAlpha = 0.2 + 0.25 * k; ctx.fillStyle = bl.color.base;
+  ctx.fillRect(x + 4, y + h - 4 - fh, w - 8, fh);
+  // rim flickers just before the cube comes back
+  if (k > 0.8) {
+    ctx.globalAlpha = (k - 0.8) / 0.2 * (0.5 + 0.5 * Math.sin(bl.regrow * 18));
+    ctx.strokeStyle = bl.color.light; ctx.strokeRect(x + 2.5, y + 2.5, w - 5, h - 5);
+  }
+  ctx.restore();
+}
 function drawBlockShadow(bl) {
+  if (bl.dead) return;
   ctx.save();
   if (blockTransform(bl)) { ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(bl.x + 3, bl.y + 5, bl.w, bl.h); }
   ctx.restore();
 }
 function drawBlock(bl) {
+  if (bl.dead) return;
   ctx.save();
   if (!blockTransform(bl)) { ctx.restore(); return; }
   const x = bl.x, y = bl.y, w = bl.w, h = bl.h, bv = Math.max(3, Math.round(w * 0.12));   // bevel width
@@ -348,6 +366,10 @@ function drawHUD() {
     const cx = 332 + 8, cw = 86 - 16, cy = HUD_H - 15;
     ctx.fillStyle = 'rgba(143,216,255,.12)'; ctx.fillRect(cx, cy, cw, 3);
     ctx.fillStyle = LED_BLUE; ctx.fillRect(cx, cy, cw * ((state.combo % 4) / 4), 3);
+    // WAVE: bar = breaks toward the clear quota
+    const wx = 428 + 8, ww = 66 - 16;
+    ctx.fillStyle = 'rgba(143,216,255,.12)'; ctx.fillRect(wx, cy, ww, 3);
+    ctx.fillStyle = '#ffd27a'; ctx.fillRect(wx, cy, ww * Math.min(1, state.waveBroken / Math.max(1, state.waveQuota)), 3);
   }
   ctx.restore();
 }
@@ -384,6 +406,7 @@ function render() {
   drawImpactGlow();
   // play area clip for blocks/balls
   ctx.save(); ctx.beginPath(); ctx.rect(L, T, Rgt - L, B - T); ctx.clip();
+  for (const bl of state.blocks) if (bl.dead) drawSocket(bl);   // sockets lie flat on the board, under everything
   for (const bl of state.blocks) drawBlockShadow(bl);   // shadows first so they never paint over a neighbour
   for (const bl of state.blocks) drawBlock(bl);
   drawParticles();

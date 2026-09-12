@@ -2,7 +2,7 @@
 (() => {
 'use strict';
 
-const { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS,
+const { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, REGROW_PER_HP,
         ITEM_DROP_CHANCE, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE } = window.RealBlockBreaker;
 const canvas = document.getElementById('c');
 const sound = window.RealBlockBreaker.createAudio();
@@ -13,6 +13,7 @@ const state = {
   mode: 'ready',           // ready | playing | over
   score: 0, best: +(localStorage.getItem('rbb_best') || 0),
   time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
+  waveBroken: 0, waveQuota: 0,   // cubes broken this wave / breaks needed to clear it
   zone: { x: W / 2, target: W / 2, vx: 0, flash: 0 },
   balls: [], blocks: [], particles: [], popups: [], items: [],
   effects: { speed: 0, big: 0, multi: 0 },   // seconds left on each power-up
@@ -42,7 +43,8 @@ function mkBlock(col, row, hp, colorIdx) {
   const cubes = [];
   for (let j = 0; j < SUB; j++) for (let i = 0; i < SUB; i++) {
     cubes.push({ x: GRID_X0 + (col * SUB + i) * CUBE, y: GRID_Y0 + (row * SUB + j) * CUBE, w: CUBE, h: CUBE,
-                 hp, maxHp: hp, color: PALETTE[colorIdx % PALETTE.length], spawn: 0, active: false, wobble: 0, dead: false });
+                 hp, maxHp: hp, color: PALETTE[colorIdx % PALETTE.length], spawn: 0, active: false, wobble: 0,
+                 dead: false, regrow: 0, regrowT: 0 });   // dead cubes stay in the list as sockets until they regrow
   }
   return cubes;
 }
@@ -68,6 +70,7 @@ function spawnWave(wave) {
   const extraHp = Math.floor((wave - 1) / LAYOUTS.length);   // gets tougher each full cycle
   blocks.forEach((b, i) => { b.hp += extraHp; b.maxHp = b.hp; b.spawn = -i * 0.012; });
   state.blocks = blocks;
+  state.waveBroken = 0; state.waveQuota = blocks.length;
 }
 
 // ---------------------------------------------------------------- start / reset
@@ -121,7 +124,9 @@ function hitBlock(bl, b, nx, ny) {
   state.combo++; state.maxCombo = Math.max(state.maxCombo, state.combo);
   const px = clamp(b.x, bl.x, bl.x + bl.w), py = clamp(b.y, bl.y, bl.y + bl.h);
   if (bl.hp <= 0) {
-    bl.dead = true; state.blocksBroken++;
+    // the socket stays behind; tougher cubes take longer to regrow
+    bl.dead = true; bl.active = false; bl.regrow = 0; bl.regrowT = REGROW_PER_HP * bl.maxHp;
+    state.blocksBroken++; state.waveBroken++;
     const pts = 10 * bl.maxHp * multiplier();
     state.score += pts;
     popup(bl.x + bl.w / 2, bl.y + bl.h / 2, '+' + pts, bl.color.light, multiplier() > 1 ? 20 : 16);
@@ -294,9 +299,13 @@ function update(dt) {
   state.time -= dt; state.timeAlive += dt;
   if (state.time <= 0) { state.time = 0; endGame(); return; }
 
-  // block spawn animation / activation
+  // block regrowth / spawn animation / activation
   for (const bl of state.blocks) {
-    if (bl.dead) continue;
+    if (bl.dead) {
+      bl.regrow += dt;
+      if (bl.regrow >= bl.regrowT) { bl.dead = false; bl.hp = bl.maxHp; bl.spawn = 0; bl.wobble = 0; }
+      continue;
+    }
     bl.spawn = Math.min(1, bl.spawn + dt * 2.2);
     if (bl.wobble > 0) bl.wobble = Math.max(0, bl.wobble - dt * 5);
     if (!bl.active && bl.spawn >= 1) {
@@ -321,10 +330,10 @@ function update(dt) {
     b.trail.unshift({ x: b.x, y: b.y }); if (b.trail.length > 6) b.trail.pop();
   }
   ballBallCollisions();
-  state.blocks = state.blocks.filter(bl => !bl.dead);
 
-  // wave clear
-  if (state.blocks.length === 0) {
+  // wave clear: the break quota is met, so whatever is still standing shatters and the next layout drops in
+  if (state.waveBroken >= state.waveQuota) {
+    for (const bl of state.blocks) if (!bl.dead && bl.active) spawnSplinters(bl, bl.x + bl.w / 2, bl.y + bl.h / 2, 2);
     const bonus = 1000 + 500 * (state.wave - 1);
     state.score += bonus;
     state.time += WAVE_TIME_BONUS;
