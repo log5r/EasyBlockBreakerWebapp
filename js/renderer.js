@@ -1,7 +1,7 @@
-window.RealBlockBreaker.createRenderer = function (canvas, state, multiplier) {
+window.EasyBlockBreaker.createRenderer = function (canvas, state, multiplier, fmtTime) {
 'use strict';
 
-const { W, H, HUD_H, WALL, L, Rgt, T, B, ZONE_W, ZONE_MAX_ANGLE, ITEM_W, ITEM_H, ITEMS, rand } = window.RealBlockBreaker;
+const { W, H, HUD_H, WALL, L, Rgt, T, B, ZONE_W, ZONE_MAX_ANGLE, ITEM_W, ITEM_H, ITEMS, rand } = window.EasyBlockBreaker;
 const ctx = canvas.getContext('2d');
 canvas.width = W; canvas.height = H;
 
@@ -408,7 +408,12 @@ function drawHUD() {
     ctx.fillText(label, x + 9, y + 12);
     ctx.save();
     ctx.shadowColor = valueColor === LED_BLUE ? LED_BLUE_GLOW : valueColor; ctx.shadowBlur = 10;
-    ctx.textAlign = 'right'; ctx.font = '800 22px "JetBrains Mono", "Menlo", "SF Mono", Consolas, monospace'; ctx.fillStyle = valueColor;
+    ctx.textAlign = 'right'; ctx.fillStyle = valueColor;
+    // digits shrink to fit when the value outgrows the plate (a 16-digit score near SCORE_MAX, hours of elapsed time)
+    const font = px => `800 ${px}px "JetBrains Mono", "Menlo", "SF Mono", Consolas, monospace`;
+    ctx.font = font(22);
+    const tw = ctx.measureText(value).width, room = w - 18;
+    if (tw > room) ctx.font = font(Math.max(10, Math.floor(22 * room / tw)));
     ctx.fillText(value, x + w - 9, y + h - 17);
     ctx.restore();
   };
@@ -416,7 +421,9 @@ function drawHUD() {
   // plate layout: BEST lives inside the SCORE plate as a small caption so 6-7 digit scores never overflow
   const SX = 12, SW = 284, TX = 306, TW = 110, CX = 426, CW = 86, WX = 522, WW = 66;
   plate(SX, SW, 'SCORE', state.score.toLocaleString());
-  plate(TX, TW, 'TIME', t.toString(), t <= 10 && state.mode === 'playing' && (Math.floor(state.time * 4) % 2 === 0) ? '#ff5a4a' : t <= 10 ? '#ffb1a8' : LED_BLUE);
+  // TIME counts down in the timed mode (red and blinking for the last 10 s) and counts up in the infinite mode
+  if (state.infinite) plate(TX, TW, 'TIME ∞', fmtTime(state.timeAlive));
+  else plate(TX, TW, 'TIME', t.toString(), t <= 10 && state.mode === 'playing' && (Math.floor(state.time * 4) % 2 === 0) ? '#ff5a4a' : t <= 10 ? '#ffb1a8' : LED_BLUE);
   // COMBO: big digits = hit count (+1 per hit), small badge = score multiplier, bar = progress to next multiplier
   plate(CX, CW, 'COMBO', state.combo.toString(), state.combo > 0 ? '#ffffff' : LED_BLUE);
   plate(WX, WW, 'WAVE', state.wave.toString());

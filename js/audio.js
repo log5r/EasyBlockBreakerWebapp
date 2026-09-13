@@ -1,4 +1,4 @@
-window.RealBlockBreaker.createAudio = function () {
+window.EasyBlockBreaker.createAudio = function () {
 'use strict';
 
 // ---------------------------------------------------------------- audio

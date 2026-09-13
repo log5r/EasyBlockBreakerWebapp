@@ -1,19 +1,21 @@
-# Real Block Breaker
+# Easy Block Breaker
 
 **English** | [日本語](README.ja.md)
 
-A browser game where a silver ball rolls around inside a steel cabinet and you smash as many blocks as you can before time runs out.
+A browser game where a silver ball rolls around inside a steel cabinet and you smash as many blocks as you can. Play a 90-second **Time Attack** or the **Infinite mode** with no time limit.
 Written in plain HTML / CSS / JavaScript (Canvas 2D + Web Audio API) — no build step, no dependencies.
 
 The interface automatically selects Japanese or English from your browser’s language preferences, falling back to English if neither is listed.
 
 ## How to play
 
-- The bottom of the playfield is a wall, so the ball never drops out. There are no lives; you compete for score within a **90-second time limit**.
+- The bottom of the playfield is a wall, so the ball never drops out. There are no lives; you compete for score. Pick a mode on the title screen:
+  - **Time Attack**: compete for score within a **90-second time limit**. Clearing a wave adds time.
+  - **Infinite mode**: no time limit; the TIME plate in the HUD shows elapsed time instead (and no time is added). Use "Finish & save score" on the pause screen to go to the results screen.
 - Slide the **chrome deflector** on the bottom wall left and right. When the ball hits it, it is launched at an **angle that depends on where it struck**. Use this to steer the ball where you want it.
 - Breaking blocks in a row builds a combo, and every 4 hits raises the score multiplier (up to x8). Hitting any wall other than the deflector breaks the combo.
 - Broken blocks **regrow in place** after a while. The delay is proportional to toughness (toughness × 6 s); the empty socket shows a gauge while it regrows.
-- Breaking as many cubes as the layout holds **clears the wave** (regrown blocks count again; the bar under WAVE shows progress). That awards bonus points and **extra time (+10 s)**, spawns a new wave of blocks, and adds one more ball (up to 3). Blocks get tougher and balls get faster as the waves go on.
+- Breaking as many cubes as the layout holds **clears the wave** (regrown blocks count again; the bar under WAVE shows progress). That awards bonus points and **extra time (+10 s, Time Attack only)**, spawns a new wave of blocks, and adds one more ball (up to 3). Blocks get tougher and balls get faster as the waves go on.
 - From wave 3 on, **steel blocks** (riveted stainless slabs) are mixed into the layout. They can never be broken, only bounce the ball, and don't count toward the clear quota (PIERCE doesn't go through them either). One more appears every 2 waves, up to 6. They are only placed where they **don't split the board into more connected regions** — i.e. they never seal off a pocket the ball can't get into — so an unclearable wave is impossible.
 - Broken blocks occasionally drop an **item**. Catch it on the deflector to activate a timed power-up; items that land on any other part of the bottom wall vanish.
   - Each eligible break has a **20%** drop chance, with a guaranteed drop after nine consecutive misses. Drops are at least 1.25 seconds apart, with at most three items falling at once; breaks during either limit do not roll or count as misses. All four item types are equally likely.
@@ -21,7 +23,8 @@ The interface automatically selects Japanese or English from your browser’s la
   - **BLAST** (10 s): every cube that breaks sends out a shockwave that deals one hit to each edge-adjacent cube (cubes broken by the shockwave don't chain).
   - **x2** (10 s): the number of balls doubles (the extra balls disappear when it wears off).
   - **PIERCE** (8 s): the balls pass straight through blocks (each block takes one hit per pass) and only bounce off the walls.
-- Your best score is saved in the browser's `localStorage`.
+- Your best score is saved per mode in the browser's `localStorage` (the last mode you picked is remembered too).
+- The score is capped at `Number.MAX_SAFE_INTEGER` (9,007,199,254,740,991), the largest integer JavaScript numbers represent exactly. You will never realistically reach it, but if you do, scoring stops there and a "SCORE LIMIT" screen shows a message before returning to the title.
 
 ### Controls
 
@@ -61,8 +64,8 @@ npx wrangler@4.131.1 deploy
 ```
 index.html        Page structure
 css/style.css     Styles
-js/i18n.js        Language selection and translations
 js/core.js        Shared configuration and helpers
+js/i18n.js        Language selection and translations
 js/audio.js       Sound effects
 js/renderer.js    Canvas drawing and textures
 js/game.js        Game state, rules, controls, and loop

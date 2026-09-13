@@ -15,7 +15,7 @@ const context = vm.createContext({
 const source = name => fs.readFileSync(path.join(__dirname, '../js', name), 'utf8');
 vm.runInContext(source('core.js'), context);
 vm.runInContext(source('i18n.js'), context);
-Object.assign(context.window.RealBlockBreaker, {
+Object.assign(context.window.EasyBlockBreaker, {
   createAudio: () => ({ initAudio() {}, sfx() {}, setVolume() {} }),
   createRenderer: () => ({ render() {} }),
 });

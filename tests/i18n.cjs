@@ -18,7 +18,7 @@ function load(navigator) {
     localStorage: { getItem: () => null, setItem() {} }, performance: { now: () => 0 }, requestAnimationFrame() {} });
   for (const file of ['core.js', 'i18n.js']) vm.runInContext(fs.readFileSync(path.join(root, 'js', file), 'utf8'), context);
   let muted = false;
-  Object.assign(context.window.RealBlockBreaker, {
+  Object.assign(context.window.EasyBlockBreaker, {
     createAudio: () => ({ initAudio() {}, sfx() {}, setVolume() {}, toggleMute: () => muted = !muted }),
     createRenderer: () => ({ render() {} }),
   });

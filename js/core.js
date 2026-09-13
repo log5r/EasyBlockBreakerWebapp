@@ -1,5 +1,5 @@
 // Shared configuration and helpers; classic scripts also support file:// URLs.
-window.RealBlockBreaker = (() => {
+window.EasyBlockBreaker = (() => {
 'use strict';
 
 // ---------------------------------------------------------------- constants
@@ -12,8 +12,11 @@ const BASE_SPEED = 520, MAX_SPEED = 960, MIN_SPEED = 340;
 const WAVE_TIME_BONUS = 10;        // seconds added on a full clear
 const ZONE_W = 150;                // deflector width
 const ZONE_MAX_ANGLE = 68 * Math.PI / 180;
-const TIME_LIMIT = 90;
+const TIME_LIMIT = 90;             // seconds in the timed mode; the infinite mode never counts down
 const MAX_BALLS = 3;
+// the score is a plain JS number: past MAX_SAFE_INTEGER integer arithmetic loses precision, so the run ends there
+const SCORE_MAX = Number.MAX_SAFE_INTEGER;
+const SCORE_LIMIT_RETURN = 8;      // seconds the SCORE LIMIT screen stays up before returning to the title
 // ---------------------------------------------------------------- regrowth
 // a broken cube leaves its socket behind and regrows there after REGROW_PER_HP seconds per point of toughness;
 // a wave clears once as many cubes as the layout holds have been broken (regrown ones count again)
@@ -52,6 +55,6 @@ const PALETTE = [
   { name: 'purple', base: '#7e5aa6', light: '#a98acc', dark: '#4a3266' },
 ];
 
-return { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, REGROW_PER_HP,
+return { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, SCORE_MAX, SCORE_LIMIT_RETURN, REGROW_PER_HP,
          STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_DROP_PITY, ITEM_DROP_COOLDOWN, MAX_FALLING_ITEMS, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE };
 })();
