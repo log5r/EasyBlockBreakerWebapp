@@ -272,31 +272,61 @@ function drawBall(b) {
   const sg = ctx.createRadialGradient(x + 4, y + 6, R * 0.2, x + 4, y + 6, R * 1.7);
   sg.addColorStop(0, 'rgba(0,0,0,.6)'); sg.addColorStop(0.6, 'rgba(0,0,0,.28)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = sg; ctx.beginPath(); ctx.ellipse(x + 4, y + 6, R * 1.6, R * 1.35, 0, 0, Math.PI * 2); ctx.fill();
-  // chrome body
-  const bg = ctx.createRadialGradient(x - R * 0.42, y - R * 0.45, R * 0.05, x - R * 0.1, y - R * 0.1, R * 1.15);
-  bg.addColorStop(0, '#ffffff'); bg.addColorStop(0.18, '#eef1f3'); bg.addColorStop(0.45, '#aeb5bb');
-  bg.addColorStop(0.72, '#5f666d'); bg.addColorStop(0.92, '#2b3035'); bg.addColorStop(1, '#1a1d21');
+  // mirror-polished stainless: what sells the finish is contrast and sharp edges in the reflection, not a smooth
+  // shading gradient. The sphere reflects the cabinet: a bright overhead "sky" that darkens toward the horizon, the
+  // matte board below it, the warm LED rail at the bottom, and the two chrome side rails as thin vertical streaks.
+  const bg = ctx.createRadialGradient(x - R * 0.40, y - R * 0.42, R * 0.04, x - R * 0.08, y - R * 0.05, R * 1.08);
+  bg.addColorStop(0, '#ffffff'); bg.addColorStop(0.16, '#f5f7f9'); bg.addColorStop(0.36, '#c4cad0');
+  bg.addColorStop(0.56, '#6a7178'); bg.addColorStop(0.76, '#23272c'); bg.addColorStop(0.90, '#0e1013'); bg.addColorStop(1, '#2c3136');
   ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
-  // environment reflection: bright "sky" on top, dark steel board on the lower half, rail glint at the bottom
   ctx.save(); ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.clip();
-  const eg = ctx.createLinearGradient(0, y - R, 0, y + R);
-  eg.addColorStop(0, 'rgba(255,255,255,.15)'); eg.addColorStop(0.40, 'rgba(255,255,255,0)');
-  eg.addColorStop(0.47, 'rgba(10,12,14,.55)'); eg.addColorStop(0.60, 'rgba(40,44,48,.45)');
-  eg.addColorStop(0.85, 'rgba(20,22,25,.35)'); eg.addColorStop(1, 'rgba(220,225,230,.35)');
-  ctx.fillStyle = eg; ctx.fillRect(x - R, y - R, R * 2, R * 2);
-  // dark edge band (fresnel)
-  const fg = ctx.createRadialGradient(x, y, R * 0.8, x, y, R);
-  fg.addColorStop(0, 'rgba(0,0,0,0)'); fg.addColorStop(1, 'rgba(0,0,0,.45)');
+  // sky: near-white at the top, a thin dark band where the top rail reflects, then falling off to mid-grey at the horizon
+  const sky = ctx.createLinearGradient(0, y - R, 0, y + R * 0.02);
+  sky.addColorStop(0, 'rgba(255,255,255,.70)'); sky.addColorStop(0.10, 'rgba(255,255,255,.55)');
+  sky.addColorStop(0.16, 'rgba(60,66,72,.30)'); sky.addColorStop(0.22, 'rgba(255,255,255,.35)');
+  sky.addColorStop(0.60, 'rgba(210,216,222,.10)'); sky.addColorStop(1, 'rgba(120,128,136,0)');
+  ctx.fillStyle = sky; ctx.fillRect(x - R, y - R, R * 2, R * 1.04);
+  // ground: the board's reflection, a hard horizon slightly bowed by the curvature (we look down on it, so it sits a
+  // touch above centre), near-black at the horizon, easing to a lighter grey where the board catches the rail light
+  ctx.beginPath();
+  ctx.moveTo(x - R * 1.02, y + R * 0.08);
+  ctx.quadraticCurveTo(x, y - R * 0.16, x + R * 1.02, y + R * 0.08);
+  ctx.lineTo(x + R * 1.02, y + R * 1.02); ctx.lineTo(x - R * 1.02, y + R * 1.02); ctx.closePath();
+  const gnd = ctx.createLinearGradient(0, y - R * 0.05, 0, y + R);
+  gnd.addColorStop(0, 'rgba(6,8,10,.92)'); gnd.addColorStop(0.22, 'rgba(14,17,20,.85)');
+  gnd.addColorStop(0.55, 'rgba(58,64,70,.68)'); gnd.addColorStop(0.78, 'rgba(112,120,128,.55)');
+  gnd.addColorStop(0.90, 'rgba(60,66,72,.6)'); gnd.addColorStop(1, 'rgba(20,22,25,.7)');
+  ctx.fillStyle = gnd; ctx.fill();
+  // bottom rail: the warm LED strip reflects as a bright arc hugging the lower edge, fading out toward the sides
+  const led = ctx.createLinearGradient(x - R, 0, x + R, 0);
+  led.addColorStop(0, 'rgba(255,236,208,0)'); led.addColorStop(0.3, 'rgba(255,236,208,.7)');
+  led.addColorStop(0.7, 'rgba(255,236,208,.7)'); led.addColorStop(1, 'rgba(255,236,208,0)');
+  ctx.strokeStyle = led; ctx.lineWidth = Math.max(1, R * 0.09);
+  ctx.beginPath(); ctx.arc(x, y, R * 0.91, Math.PI * 0.26, Math.PI * 0.74); ctx.stroke();
+  // side rails: thin bright streaks curving with the surface near the left and right limbs
+  const rail = ctx.createLinearGradient(0, y - R, 0, y + R);
+  rail.addColorStop(0, 'rgba(255,255,255,0)'); rail.addColorStop(0.3, 'rgba(255,255,255,.4)');
+  rail.addColorStop(0.7, 'rgba(255,255,255,.3)'); rail.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.strokeStyle = rail; ctx.lineWidth = Math.max(0.8, R * 0.06);
+  ctx.beginPath(); ctx.arc(x, y, R * 0.90, Math.PI * 0.78, Math.PI * 1.22); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, R * 0.90, -Math.PI * 0.24, Math.PI * 0.24); ctx.stroke();
+  // fresnel: the limb goes dark just inside the edge, then a hairline of reflected light on the very rim
+  const fg = ctx.createRadialGradient(x, y, R * 0.72, x, y, R);
+  fg.addColorStop(0, 'rgba(0,0,0,0)'); fg.addColorStop(0.75, 'rgba(0,0,0,.35)'); fg.addColorStop(1, 'rgba(0,0,0,.7)');
   ctx.fillStyle = fg; ctx.fillRect(x - R, y - R, R * 2, R * 2);
   ctx.restore();
-  // sharp specular highlights
-  ctx.fillStyle = 'rgba(255,255,255,.95)';
-  ctx.beginPath(); ctx.ellipse(x - R * 0.40, y - R * 0.44, R * 0.26, R * 0.17, -0.7, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,.5)';
-  ctx.beginPath(); ctx.arc(x + R * 0.35, y + R * 0.45, R * 0.10, 0, Math.PI * 2); ctx.fill();
-  // rim light along lower edge
-  ctx.strokeStyle = 'rgba(255,250,240,.35)'; ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.arc(x, y, R - 1, 0.35, Math.PI - 0.35); ctx.stroke();
+  const rim = ctx.createLinearGradient(x - R, y - R, x + R, y + R);
+  rim.addColorStop(0, 'rgba(255,255,255,.8)'); rim.addColorStop(0.5, 'rgba(255,255,255,.3)'); rim.addColorStop(1, 'rgba(255,255,255,.55)');
+  ctx.strokeStyle = rim; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(x, y, R - 0.5, 0, Math.PI * 2); ctx.stroke();
+  // specular: a pin-sharp key light with a soft bloom around it, plus a small hard glint from the rail LED
+  const bloom = ctx.createRadialGradient(x - R * 0.40, y - R * 0.44, 0, x - R * 0.40, y - R * 0.44, R * 0.55);
+  bloom.addColorStop(0, 'rgba(255,255,255,.55)'); bloom.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = bloom; ctx.beginPath(); ctx.arc(x - R * 0.40, y - R * 0.44, R * 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.ellipse(x - R * 0.42, y - R * 0.46, R * 0.20, R * 0.12, -0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,244,224,.85)';
+  ctx.beginPath(); ctx.arc(x + R * 0.36, y + R * 0.46, R * 0.09, 0, Math.PI * 2); ctx.fill();
   if (state.effects.pierce > 0) {
     ctx.save(); ctx.shadowColor = ITEMS.pierce.color; ctx.shadowBlur = 10;
     ctx.strokeStyle = 'rgba(214,160,255,.9)'; ctx.lineWidth = 1.5;
