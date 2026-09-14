@@ -17,7 +17,7 @@ const state = {
   time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
   waveBroken: 0, waveQuota: 0,   // cubes broken this wave / breaks needed to clear it
   zone: { x: W / 2, target: W / 2, vx: 0, flash: 0 },
-  balls: [], blocks: [], particles: [], popups: [], items: [],
+  balls: [], blocks: [], steelCells: [], particles: [], popups: [], items: [],
   effects: { speed: 0, blast: 0, multi: 0, pierce: 0 },   // seconds left on each power-up
   banner: null, keys: {},
   impact: 0, glow: 0, hitColor: null,   // impact = pulse added per break; glow eases after it (LED flare + soft flash)
@@ -87,6 +87,19 @@ function floorReachesAll(steel, rows) {
   }
   return seen.size === (rows + 1) * COLS - steel.size;
 }
+// every steel cell must touch at least one non-steel cell (or the open floor row). A cell only comes solid once no ball
+// is over it, so a ball can end up sitting where a steel cell is waiting to appear; this guarantees it always has a way out.
+function steelHasExit(steel, rows) {
+  for (const k of steel) {
+    const [c, r] = k.split(',').map(Number);
+    const exit = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dc, dr]) => {
+      const nc = c + dc, nr = r + dr;
+      return nc >= 0 && nc < COLS && nr >= 0 && nr <= rows && !steel.has(nc + ',' + nr);
+    });
+    if (!exit) return false;
+  }
+  return true;
+}
 // pick steel cells one at a time in random order; a cell is kept only if the board stays one connected region,
 // so steel can never wall off a pocket of cubes (or empty space) the ball couldn't get into
 function placeSteel(blocks, wave) {
@@ -101,7 +114,7 @@ function placeSteel(blocks, wave) {
     if (chosen.length >= n) break;
     const k = c + ',' + r;
     steel.add(k);
-    if (floorReachesAll(steel, rows)) chosen.push([c, r]); else steel.delete(k);
+    if (floorReachesAll(steel, rows) && steelHasExit(steel, rows)) chosen.push([c, r]); else steel.delete(k);
   }
   // a steel cell replaces whatever breakable cubes the layout had there
   const out = blocks.filter(b => !steel.has(b.col + ',' + b.row));
@@ -114,6 +127,14 @@ function spawnWave(wave) {
   const extraHp = Math.floor((wave - 1) / LAYOUTS.length);   // gets tougher each full cycle
   blocks.forEach((b, i) => { if (!b.steel) { b.hp += extraHp; b.maxHp = b.hp; } b.spawn = -i * 0.012; });
   state.blocks = blocks;
+  // steel cubes are grouped back into their 2x2 cells: a cell rises and comes solid as one unit (see update)
+  const cells = new Map();
+  for (const b of blocks) if (b.steel) {
+    const k = b.col + ',' + b.row;
+    if (!cells.has(k)) cells.set(k, { cubes: [], x: GRID_X0 + b.col * SUB * CUBE, y: GRID_Y0 + b.row * SUB * CUBE, w: SUB * CUBE, h: SUB * CUBE });
+    cells.get(k).cubes.push(b);
+  }
+  state.steelCells = [...cells.values()];
   state.waveBroken = 0; state.waveQuota = blocks.filter(b => !b.steel).length;
 }
 
@@ -474,20 +495,26 @@ function update(dt) {
   if (state.time <= 0) { state.time = 0; endGame(); return; }
 
   // block regrowth / spawn animation / activation
+  const ballOver = (x, y, w, h) => state.balls.some(b => b.x + b.r > x - 2 && b.x - b.r < x + w + 2 && b.y + b.r > y - 2 && b.y - b.r < y + h + 2);
   for (const bl of state.blocks) {
     if (bl.dead) {
       bl.regrow += dt;
       if (bl.regrow >= bl.regrowT) { bl.dead = false; bl.hp = bl.maxHp; bl.spawn = 0; bl.wobble = 0; }
       continue;
     }
-    bl.spawn = Math.min(1, bl.spawn + dt * 2.2);
+    if (!bl.steel) bl.spawn = Math.min(1, bl.spawn + dt * 2.2);   // steel rises per cell, below
     if (bl.wobble > 0) bl.wobble = Math.max(0, bl.wobble - dt * 5);
     if (bl.flash > 0) bl.flash = Math.max(0, bl.flash - dt * 6);
-    if (!bl.active && bl.spawn >= 1) {
-      // don't activate on top of a ball
-      const overlap = state.balls.some(b => b.x + b.r > bl.x - 2 && b.x - b.r < bl.x + bl.w + 2 && b.y + b.r > bl.y - 2 && b.y - b.r < bl.y + bl.h + 2);
-      if (!overlap) bl.active = true;
-    }
+    // don't activate on top of a ball (a breakable cube sealed around a ball can always be broken out of)
+    if (!bl.steel && !bl.active && bl.spawn >= 1 && !ballOver(bl.x, bl.y, bl.w, bl.h)) bl.active = true;
+  }
+  // steel cells rise and come solid as one unit, and only while no ball is over the cell. Activating cube by cube could
+  // seal a ball into a pocket of the cell's own cubes, and steel never breaks to let it out again. While a ball is over
+  // the cell the rise pauses, so the cell never looks solid while it isn't; placeSteel guarantees the ball has a way out.
+  for (const cell of state.steelCells) {
+    if (cell.cubes[0].active || ballOver(cell.x, cell.y, cell.w, cell.h)) continue;
+    for (const c of cell.cubes) c.spawn = Math.min(1, c.spawn + dt * 2.2);
+    if (cell.cubes.every(c => c.spawn >= 1)) for (const c of cell.cubes) c.active = true;
   }
 
   updateItems(dt);
