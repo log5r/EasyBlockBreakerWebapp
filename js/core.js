@@ -10,6 +10,9 @@ const L = WALL, Rgt = W - WALL, T = HUD_H + WALL, B = H - WALL;  // interior bou
 const R = 13;                      // ball radius
 const BASE_SPEED = 520, MAX_SPEED = 960, MIN_SPEED = 340;
 const WAVE_TIME_BONUS = 10;        // seconds added on a full clear
+// timed mode also pays out along the way: WAVE_TIME_STEP_BONUS seconds each time a further 1/WAVE_TIME_STEPS of the quota is broken
+// (the final step is the clear itself), so a wave that cannot be finished in time still buys a little more time
+const WAVE_TIME_STEPS = 4, WAVE_TIME_STEP_BONUS = 2;
 const ZONE_W = 150;                // deflector width
 const ZONE_MAX_ANGLE = 68 * Math.PI / 180;
 const TIME_LIMIT = 90;             // seconds in the timed mode; the infinite mode never counts down
@@ -21,6 +24,9 @@ const SCORE_LIMIT_RETURN = 8;      // seconds the SCORE LIMIT screen stays up be
 // a broken cube leaves its socket behind and regrows there after REGROW_PER_HP seconds per point of toughness;
 // a wave clears once as many cubes as the layout holds have been broken (regrown ones count again)
 const REGROW_PER_HP = 6;
+const EXTRA_HP_MAX = 2;            // every full layout cycle adds one point of toughness to every cube, up to this much
+// the ball itself hits harder while the combo multiplier is high: 1 + floor(multiplier / DAMAGE_PER_MULT) damage per hit
+const DAMAGE_PER_MULT = 4;
 // ---------------------------------------------------------------- steel
 // indestructible cubes mixed into the layout from STEEL_FROM_WAVE on; the count grows every STEEL_STEP waves up to STEEL_MAX cells.
 // they never split the board: a cell is only accepted if every non-steel cell stays reachable from the open floor
@@ -29,7 +35,9 @@ const STEEL_COLOR = { name: 'steel', base: '#aab1b8', light: '#d6dbe0', dark: '#
 // ---------------------------------------------------------------- items
 // dropped by broken blocks; caught on the deflector, lost on the plain rail
 const ITEM_DROP_CHANCE = 0.20;
-const ITEM_DROP_PITY = 10;         // guarantee a drop on the tenth eligible break
+// drought relief: after ITEM_DROUGHT_GRACE seconds with no power-up running and nothing falling, the chance climbs
+// linearly to 100% over ITEM_DROUGHT_RAMP more seconds, so a run that has lost every item always gets one back
+const ITEM_DROUGHT_GRACE = 6, ITEM_DROUGHT_RAMP = 10;
 const ITEM_DROP_COOLDOWN = 1.25;   // seconds between drops, including BLAST splash kills
 const MAX_FALLING_ITEMS = 3;
 const ITEM_W = 40, ITEM_H = 22;
@@ -55,6 +63,6 @@ const PALETTE = [
   { name: 'purple', base: '#7e5aa6', light: '#a98acc', dark: '#4a3266' },
 ];
 
-return { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, SCORE_MAX, SCORE_LIMIT_RETURN, REGROW_PER_HP,
-         STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_DROP_PITY, ITEM_DROP_COOLDOWN, MAX_FALLING_ITEMS, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE };
+return { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, WAVE_TIME_STEPS, WAVE_TIME_STEP_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, SCORE_MAX, SCORE_LIMIT_RETURN, REGROW_PER_HP, EXTRA_HP_MAX, DAMAGE_PER_MULT,
+         STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_DROUGHT_GRACE, ITEM_DROUGHT_RAMP, ITEM_DROP_COOLDOWN, MAX_FALLING_ITEMS, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE };
 })();

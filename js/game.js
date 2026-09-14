@@ -2,8 +2,8 @@
 (() => {
 'use strict';
 
-const { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, SCORE_MAX, SCORE_LIMIT_RETURN, REGROW_PER_HP,
-        STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_DROP_PITY, ITEM_DROP_COOLDOWN, MAX_FALLING_ITEMS, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE } = window.EasyBlockBreaker;
+const { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, WAVE_TIME_STEPS, WAVE_TIME_STEP_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, SCORE_MAX, SCORE_LIMIT_RETURN, REGROW_PER_HP, EXTRA_HP_MAX, DAMAGE_PER_MULT,
+        STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_DROUGHT_GRACE, ITEM_DROUGHT_RAMP, ITEM_DROP_COOLDOWN, MAX_FALLING_ITEMS, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE } = window.EasyBlockBreaker;
 const { t, labelButton } = window.EasyBlockBreaker.i18n;
 const canvas = document.getElementById('c');
 const sound = window.EasyBlockBreaker.createAudio();
@@ -21,13 +21,14 @@ const state = {
   score: 0, best: 0,
   time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
   waveBroken: 0, waveQuota: 0,   // cubes broken this wave / breaks needed to clear it
+  waveTimeSteps: 0,              // timed mode: quota fractions already paid out this wave
   zone: { x: W / 2, target: W / 2, vx: 0, flash: 0 },
   balls: [], blocks: [], steelCells: [], particles: [], popups: [], items: [],
   effects: { speed: 0, blast: 0, multi: 0, pierce: 0 },   // seconds left on each power-up
   banner: null, keys: {},
   impact: 0, glow: 0, hitColor: null,   // impact = pulse added per break; glow eases after it (LED flare + soft flash)
   timeAlive: 0,
-  itemDropMisses: 0, nextItemDropAt: 0,
+  itemDrought: 0, nextItemDropAt: 0,   // drought = seconds with no power-up running and nothing falling
   returnAt: 0,             // SCORE LIMIT screen: time (performance.now) at which it returns to the title
   flashFx: localStorage.getItem('rbb_flash') !== '0',   // screen flash + rail flare on block breaks; off = calmer visuals
 };
@@ -39,6 +40,7 @@ function newBall(x, y, angle, speed, temp = false) {
 function ballSpeed(b) { return Math.hypot(b.vx, b.vy); }
 function setSpeed(b, s) { const cur = ballSpeed(b) || 1; b.vx *= s / cur; b.vy *= s / cur; }
 function multiplier() { return 1 + Math.min(7, Math.floor(state.combo / 4)); }
+function ballDamage() { return 1 + Math.floor(multiplier() / DAMAGE_PER_MULT); }   // x4 → 2 per hit, x8 → 3
 // power-ups scale the speed band while their timer runs
 function baseSpeed() { return Math.min(MAX_SPEED * 0.8, BASE_SPEED + (state.wave - 1) * 25) * (state.effects.speed > 0 ? ITEMS.speed.speedMul : 1); }
 function maxSpeed() { return MAX_SPEED * (state.effects.speed > 0 ? ITEMS.speed.maxMul : 1); }
@@ -131,7 +133,7 @@ function placeSteel(blocks, wave) {
 function spawnWave(wave) {
   const idx = (wave - 1) % LAYOUTS.length;
   const blocks = placeSteel(LAYOUTS[idx](wave).flat(), wave);
-  const extraHp = Math.floor((wave - 1) / LAYOUTS.length);   // gets tougher each full cycle
+  const extraHp = Math.min(EXTRA_HP_MAX, Math.floor((wave - 1) / LAYOUTS.length));   // gets tougher each full cycle, up to a cap
   blocks.forEach((b, i) => { if (!b.steel) { b.hp += extraHp; b.maxHp = b.hp; } b.spawn = -i * 0.012; });
   state.blocks = blocks;
   // steel cubes are grouped back into their 2x2 cells: a cell rises and comes solid as one unit (see update)
@@ -142,7 +144,7 @@ function spawnWave(wave) {
     cells.get(k).cubes.push(b);
   }
   state.steelCells = [...cells.values()];
-  state.waveBroken = 0; state.waveQuota = blocks.filter(b => !b.steel).length;
+  state.waveBroken = 0; state.waveQuota = blocks.filter(b => !b.steel).length; state.waveTimeSteps = 0;
 }
 
 // ---------------------------------------------------------------- start / reset
@@ -150,7 +152,7 @@ function startGame() {
   initAudio();
   Object.assign(state, { mode: 'playing', endReason: null, best: loadBest(state.infinite), score: 0, time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
                          particles: [], popups: [], items: [], effects: { speed: 0, blast: 0, multi: 0, pierce: 0 },
-                         banner: null, impact: 0, glow: 0, timeAlive: 0, itemDropMisses: 0, nextItemDropAt: 0, paused: false });
+                         banner: null, impact: 0, glow: 0, timeAlive: 0, itemDrought: 0, nextItemDropAt: 0, paused: false });
   state.zone.x = state.zone.target = W / 2; state.zone.vx = 0;
   state.balls = [newBall(W / 2, B - R - 40, rand(-0.5, 0.5), BASE_SPEED)];
   spawnWave(1);
@@ -308,12 +310,16 @@ function hitBlock(bl, b, nx, ny, splash = false) {
     setSpeed(b, clamp(ballSpeed(b) + 6, MIN_SPEED, maxSpeed()));
     return;
   }
-  bl.hp--; bl.wobble = 1;
+  // a splash always chips one point; the ball hits harder the higher the combo multiplier
+  bl.hp -= splash ? 1 : ballDamage(); bl.wobble = 1;
+  const dmgBefore = ballDamage();
   state.combo++; state.maxCombo = Math.max(state.maxCombo, state.combo);
+  if (ballDamage() > dmgBefore) popup(px, py - 24, `POWER x${ballDamage()}`, '#ffd27a', 18);
   if (bl.hp <= 0) {
     // the socket stays behind; tougher cubes take longer to regrow
     bl.dead = true; bl.active = false; bl.regrow = 0; bl.regrowT = REGROW_PER_HP * bl.maxHp;
     state.blocksBroken++; state.waveBroken++;
+    payWaveTimeStep(px, py);
     const pts = 10 * bl.maxHp * multiplier();
     addScore(pts);
     popup(bl.x + bl.w / 2, bl.y + bl.h / 2, '+' + pts, bl.color.light, multiplier() > 1 ? 20 : 16);
@@ -328,6 +334,15 @@ function hitBlock(bl, b, nx, ny, splash = false) {
   }
   // tiny speed kick on impact keeps things lively
   if (!splash) setSpeed(b, clamp(ballSpeed(b) + 6, MIN_SPEED, maxSpeed()));
+}
+// timed mode: each further 1/WAVE_TIME_STEPS of the quota pays a small time bonus; the last step is the clear bonus itself
+function payWaveTimeStep(px, py) {
+  if (state.infinite) return;
+  const due = Math.min(WAVE_TIME_STEPS - 1, Math.floor(state.waveBroken * WAVE_TIME_STEPS / Math.max(1, state.waveQuota)));
+  if (state.waveTimeSteps >= due) return;
+  state.time += WAVE_TIME_STEP_BONUS * (due - state.waveTimeSteps);
+  popup(px, py - 24, `+${WAVE_TIME_STEP_BONUS * (due - state.waveTimeSteps)}s`, '#8fd8ff', 16);
+  state.waveTimeSteps = due;
 }
 // BLAST: the shockwave of a breaking cube deals one hit to every cube sharing an edge with it.
 // Splash hits can break cubes but never blast in turn, so a single break clears at most a plus shape.
@@ -460,13 +475,13 @@ function ballBallCollisions() {
 }
 
 // ---------------------------------------------------------------- items & power-ups
+// the base chance climbs to a sure thing the longer the player has been without any item (see ITEM_DROUGHT_*)
+function itemDropChance() { return lerp(ITEM_DROP_CHANCE, 1, clamp((state.itemDrought - ITEM_DROUGHT_GRACE) / ITEM_DROUGHT_RAMP, 0, 1)); }
 function tryDropItem(x, y) {
-  // Suppressed breaks do not consume rolls or build up a guaranteed drop.
+  // Suppressed breaks do not consume rolls.
   if (state.mode !== 'playing' || state.timeAlive < state.nextItemDropAt || state.items.length >= MAX_FALLING_ITEMS) return;
-  state.itemDropMisses++;
-  if (state.itemDropMisses < ITEM_DROP_PITY && Math.random() >= ITEM_DROP_CHANCE) return;
+  if (Math.random() >= itemDropChance()) return;
   spawnItem(x, y);
-  state.itemDropMisses = 0;
   state.nextItemDropAt = state.timeAlive + ITEM_DROP_COOLDOWN;
 }
 function spawnItem(x, y) {
@@ -520,6 +535,8 @@ function updateItems(dt) {
     fx[k] -= dt;
     if (fx[k] <= 0) { fx[k] = 0; endEffect(k); }
   }
+  // a power-up running or an item still in the air both count as "has something"; the drought clock only runs without either
+  state.itemDrought = state.items.length || Object.values(fx).some(v => v > 0) ? 0 : state.itemDrought + dt;
 }
 
 function update(dt) {
@@ -607,7 +624,7 @@ function update(dt) {
   state.glow += (state.impact - state.glow) * (1 - Math.exp(-dt * 9));
 }
 
-const { render } = window.EasyBlockBreaker.createRenderer(canvas, state, multiplier, fmtTime);
+const { render } = window.EasyBlockBreaker.createRenderer(canvas, state, multiplier, fmtTime, ballDamage);
 
 // ---------------------------------------------------------------- loop & layout
 let last = performance.now();

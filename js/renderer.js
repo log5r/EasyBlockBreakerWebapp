@@ -1,4 +1,4 @@
-window.EasyBlockBreaker.createRenderer = function (canvas, state, multiplier, fmtTime) {
+window.EasyBlockBreaker.createRenderer = function (canvas, state, multiplier, fmtTime, ballDamage) {
 'use strict';
 
 const { W, H, HUD_H, WALL, L, Rgt, T, B, ZONE_W, ZONE_MAX_ANGLE, ITEM_W, ITEM_H, ITEMS, rand } = window.EasyBlockBreaker;
@@ -441,8 +441,9 @@ function drawHUD() {
   ctx.fillText('BEST ' + state.best.toLocaleString(), SX + SW - 9, 12 + 12);
   if (state.mode === 'playing') {
     ctx.textAlign = 'right'; ctx.font = '700 10px "JetBrains Mono", "Menlo", "SF Mono", Consolas, monospace';
+    // badge: score multiplier, plus the per-hit damage once the combo is high enough to raise it
     ctx.fillStyle = multiplier() > 1 ? '#ffd27a' : '#6f8aa6';
-    ctx.fillText('x' + multiplier(), CX + CW - 9, 12 + 12);
+    ctx.fillText('x' + multiplier() + (ballDamage() > 1 ? ' ⚡' + ballDamage() : ''), CX + CW - 9, 12 + 12);
     const cx = CX + 8, cw = CW - 16, cy = HUD_H - 15;
     ctx.fillStyle = 'rgba(143,216,255,.12)'; ctx.fillRect(cx, cy, cw, 3);
     ctx.fillStyle = LED_BLUE; ctx.fillRect(cx, cy, cw * ((state.combo % 4) / 4), 3);
