@@ -22,3 +22,8 @@ node_modules/
 dist/
 .env
 .env.*
+
+# wrangler files
+.dev.vars*
+!.dev.vars.example
+!.env.example

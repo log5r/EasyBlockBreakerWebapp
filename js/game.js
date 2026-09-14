@@ -2,18 +2,23 @@
 (() => {
 'use strict';
 
-const { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, REGROW_PER_HP,
-        STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_DROP_PITY, ITEM_DROP_COOLDOWN, MAX_FALLING_ITEMS, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE } = window.RealBlockBreaker;
-const { t, labelButton } = window.RealBlockBreaker.i18n;
+const { W, H, HUD_H, WALL, L, Rgt, T, B, R, BASE_SPEED, MAX_SPEED, MIN_SPEED, WAVE_TIME_BONUS, ZONE_W, ZONE_MAX_ANGLE, TIME_LIMIT, MAX_BALLS, SCORE_MAX, SCORE_LIMIT_RETURN, REGROW_PER_HP,
+        STEEL_FROM_WAVE, STEEL_STEP, STEEL_MAX, STEEL_COLOR, ITEM_DROP_CHANCE, ITEM_DROP_PITY, ITEM_DROP_COOLDOWN, MAX_FALLING_ITEMS, ITEM_W, ITEM_H, ITEM_GRAVITY, ITEM_MAX_FALL, MAX_MULTI_BALLS, ITEMS, clamp, rand, lerp, PALETTE } = window.EasyBlockBreaker;
+const { t, labelButton } = window.EasyBlockBreaker.i18n;
 const canvas = document.getElementById('c');
-const sound = window.RealBlockBreaker.createAudio();
+const sound = window.EasyBlockBreaker.createAudio();
 const { initAudio, sfx } = sound;
 
 // ---------------------------------------------------------------- game state
+// best scores are kept per mode: an endless run would otherwise bury every timed score
+const bestKey = infinite => infinite ? 'rbb_best_inf' : 'rbb_best';
+const loadBest = infinite => +(localStorage.getItem(bestKey(infinite)) || 0);
 const state = {
   mode: 'ready',           // ready | playing | over
   paused: false,           // only meaningful while playing; the loop keeps rendering but stops updating
-  score: 0, best: +(localStorage.getItem('rbb_best') || 0),
+  infinite: localStorage.getItem('rbb_mode') === 'infinite',   // timed (90 s) or endless; picked on the title screen
+  endReason: null,         // time | quit | limit — why the last run ended
+  score: 0, best: 0,
   time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
   waveBroken: 0, waveQuota: 0,   // cubes broken this wave / breaks needed to clear it
   zone: { x: W / 2, target: W / 2, vx: 0, flash: 0 },
@@ -23,8 +28,10 @@ const state = {
   impact: 0, glow: 0, hitColor: null,   // impact = pulse added per break; glow eases after it (LED flare + soft flash)
   timeAlive: 0,
   itemDropMisses: 0, nextItemDropAt: 0,
+  returnAt: 0,             // SCORE LIMIT screen: time (performance.now) at which it returns to the title
   flashFx: localStorage.getItem('rbb_flash') !== '0',   // screen flash + rail flare on block breaks; off = calmer visuals
 };
+state.best = loadBest(state.infinite);
 
 function newBall(x, y, angle, speed, temp = false) {
   return { x, y, vx: Math.sin(angle) * speed, vy: -Math.cos(angle) * speed, r: R, stuckT: 0, trail: [], temp, passing: [] };   // passing = cubes currently being pierced
@@ -141,7 +148,7 @@ function spawnWave(wave) {
 // ---------------------------------------------------------------- start / reset
 function startGame() {
   initAudio();
-  Object.assign(state, { mode: 'playing', score: 0, time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
+  Object.assign(state, { mode: 'playing', endReason: null, best: loadBest(state.infinite), score: 0, time: TIME_LIMIT, wave: 1, combo: 0, maxCombo: 0, blocksBroken: 0,
                          particles: [], popups: [], items: [], effects: { speed: 0, blast: 0, multi: 0, pierce: 0 },
                          banner: null, impact: 0, glow: 0, timeAlive: 0, itemDropMisses: 0, nextItemDropAt: 0, paused: false });
   state.zone.x = state.zone.target = W / 2; state.zone.vx = 0;
@@ -149,28 +156,43 @@ function startGame() {
   spawnWave(1);
   document.getElementById('start').classList.add('hidden');
   document.getElementById('over').classList.add('hidden');
-  document.getElementById('pause').classList.add('hidden');
-  document.getElementById('pauseBtn').classList.remove('hidden');
-  showBanner('WAVE 1', '', 1.2);
+  setHidden('pause', true); setHidden('pauseBtn', false);
+  showBanner('WAVE 1', state.infinite ? 'INFINITE' : '', 1.2);
 }
-function endGame(title = 'TIME UP') {
-  state.mode = 'over';
-  document.getElementById('pauseBtn').classList.add('hidden');
-  document.getElementById('overTitle').textContent = title;
-  if (state.score > state.best) { state.best = state.score; localStorage.setItem('rbb_best', state.best); }
-  document.getElementById('finalScore').textContent = state.score.toLocaleString();
+// reason: 'time' (timer ran out), 'finish' (pause screen), 'limit' (score hit SCORE_MAX)
+function endGame(reason) {
+  state.mode = 'over'; state.endReason = reason; state.paused = false;
+  setHidden('pause', true); setHidden('pauseBtn', true);
+  if (state.score > state.best) { state.best = state.score; localStorage.setItem(bestKey(state.infinite), state.best); }
+  document.getElementById('overTitle').textContent = reason === 'time' ? 'TIME UP' : reason === 'limit' ? 'SCORE LIMIT' : 'FINISHED';
+  const finalScore = document.getElementById('finalScore');
+  finalScore.textContent = state.score.toLocaleString();
+  finalScore.classList[state.score >= 1e12 ? 'add' : 'remove']('long');   // 13+ digits would overflow the overlay at full size
   document.getElementById('finalBest').textContent = 'BEST ' + state.best.toLocaleString();
-  document.getElementById('finalStats').textContent =
-    t('stats', { wave: state.wave, blocks: state.blocksBroken, combo: state.maxCombo });
+  const stats = document.getElementById('finalStats');
+  const played = state.infinite ? t('played', { time: fmtTime(state.timeAlive) }) : '';
+  stats.textContent = played + t('stats', { wave: state.wave, blocks: state.blocksBroken, combo: state.maxCombo });
+  if (reason === 'limit') {
+    stats.textContent = t('limitNote', { max: SCORE_MAX.toLocaleString(), seconds: SCORE_LIMIT_RETURN });
+    state.returnAt = performance.now() + SCORE_LIMIT_RETURN * 1000;
+  }
+  stats.className = reason === 'limit' ? 'limit' : '';
+  setHidden('retryBtn', reason === 'limit');   // the capped run is over for good; only the title is offered
   document.getElementById('over').classList.remove('hidden');
 }
-function showBanner(text, sub, dur) { state.banner = { text, sub, t: 0, dur }; }
+// back to the title screen (the finished board stays on show behind it)
+function showTitle() {
+  state.mode = 'ready'; state.endReason = null;
+  document.getElementById('over').classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');
+}
+function setHidden(id, hidden) { document.getElementById(id).classList[hidden ? 'add' : 'remove']('hidden'); }
 // ---------------------------------------------------------------- pause
 function setPaused(on) {
   if (state.mode !== 'playing' || state.paused === on) return;
   state.paused = on;
   state.keys = {};   // a key held across the pause must not keep the deflector moving afterwards
-  document.getElementById('pause').classList.toggle('hidden', !on);
+  setHidden('pause', !on);
   document.getElementById('pauseBtn').textContent = on ? '▶' : '❚❚';
   labelButton('pauseBtn', on ? 'resumeAction' : 'pauseAction');
 }
@@ -179,18 +201,34 @@ function togglePause() { setPaused(!state.paused); }
 function finishGame() {
   if (state.mode !== 'playing') return;
   setPaused(false);
-  endGame('FINISHED');
+  endGame('finish');
 }
-// quit from the pause screen: back to the title with the idle demo, the run is discarded (no best-score update)
+// quit from the pause screen: back to the title, the run is discarded (no best-score update)
 function quitGame() {
   if (state.mode !== 'playing') return;
   setPaused(false);
-  state.mode = 'ready';
   state.banner = null; state.items = []; state.popups = []; state.particles = [];
   state.effects = { speed: 0, blast: 0, multi: 0, pierce: 0 };
-  document.getElementById('pauseBtn').classList.add('hidden');
-  document.getElementById('start').classList.remove('hidden');
+  setHidden('pauseBtn', true);
+  showTitle();
 }
+function selectMode(infinite, persist = true) {
+  state.infinite = infinite; state.best = loadBest(infinite);
+  if (persist) localStorage.setItem('rbb_mode', infinite ? 'infinite' : 'timed');
+  document.getElementById('modeTimed').classList[infinite ? 'remove' : 'add']('selected');
+  document.getElementById('modeInfinite').classList[infinite ? 'add' : 'remove']('selected');
+}
+function fmtTime(sec) {
+  const s = Math.floor(sec), m = Math.floor(s / 60) % 60, h = Math.floor(s / 3600), pad = n => String(n).padStart(2, '0');
+  return (h ? h + ':' + pad(m) : m) + ':' + pad(s % 60);
+}
+// every point goes through here: the total is clamped at SCORE_MAX and reaching it ends the run
+function addScore(pts) {
+  if (state.mode !== 'playing') return;
+  state.score = Math.min(SCORE_MAX, state.score + pts);
+  if (state.score >= SCORE_MAX) endGame('limit');
+}
+function showBanner(text, sub, dur) { state.banner = { text, sub, t: 0, dur }; }
 function popup(x, y, text, color = '#fff', size = 18) { state.popups.push({ x, y, text, color, size, t: 0 }); }
 
 // ---------------------------------------------------------------- input
@@ -208,24 +246,30 @@ window.addEventListener('keydown', e => {
   if (e.key === 'm' || e.key === 'M') toggleMute();
   if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
   if (e.key === ' ' || e.key === 'Enter') {
-    if (state.mode !== 'playing') startGame();
+    if (state.mode === 'over' && state.endReason === 'limit') showTitle();
     else if (state.paused) setPaused(false);
+    else if (state.mode !== 'playing') startGame();
   }
 });
 window.addEventListener('keyup', e => { state.keys[e.key] = false; });
 document.getElementById('startBtn').addEventListener('click', startGame);
 document.getElementById('retryBtn').addEventListener('click', startGame);
+document.getElementById('titleBtn').addEventListener('click', showTitle);
 document.getElementById('resumeBtn').addEventListener('click', () => setPaused(false));
 document.getElementById('finishBtn').addEventListener('click', finishGame);
 document.getElementById('quitBtn').addEventListener('click', quitGame);
 document.getElementById('pauseBtn').addEventListener('click', e => { togglePause(); e.target.blur(); });
 // switching tabs mid-run: coming back should not drop the player straight onto a ball already in flight
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
+document.getElementById('modeTimed').addEventListener('click', () => selectMode(false));
+document.getElementById('modeInfinite').addEventListener('click', () => selectMode(true));
+selectMode(state.infinite, false);   // reflect the remembered mode in the picker without rewriting it
 function toggleMute() {
   const muted = sound.toggleMute();
   document.getElementById('mute').textContent = muted ? '🔇' : '🔊';
   labelButton('mute', muted ? 'unmuteAction' : 'muteAction');
 }
+document.getElementById('mute').addEventListener('click', e => { initAudio(); toggleMute(); e.target.blur(); });
 // flash effect toggle: one checkbox on the title screen and one on the pause screen, kept in sync and remembered across sessions
 const flashToggles = [...document.querySelectorAll('.flashToggle')];
 function setFlashFx(on) {
@@ -251,7 +295,6 @@ for (const el of volumeSliders) {
   el.addEventListener('pointerup', e => e.target.blur());   // not on change: arrow keys fire change per step and must keep focus
 }
 setVolume(localStorage.getItem('rbb_volume') === null ? 100 : +localStorage.getItem('rbb_volume'));
-document.getElementById('mute').addEventListener('click', e => { initAudio(); toggleMute(); e.target.blur(); });
 
 // ---------------------------------------------------------------- physics
 // splash = hit dealt by a BLAST shockwave rather than the ball itself: no speed kick, and it never blasts again
@@ -272,7 +315,7 @@ function hitBlock(bl, b, nx, ny, splash = false) {
     bl.dead = true; bl.active = false; bl.regrow = 0; bl.regrowT = REGROW_PER_HP * bl.maxHp;
     state.blocksBroken++; state.waveBroken++;
     const pts = 10 * bl.maxHp * multiplier();
-    state.score += pts;
+    addScore(pts);
     popup(bl.x + bl.w / 2, bl.y + bl.h / 2, '+' + pts, bl.color.light, multiplier() > 1 ? 20 : 16);
     spawnSplinters(bl, px, py, 14);
     sfx('tile', 1);
@@ -491,8 +534,11 @@ function update(dt) {
   z.flash = Math.max(0, z.flash - dt * 3);
 
   if (state.mode !== 'playing') return;
-  state.time -= dt; state.timeAlive += dt;
-  if (state.time <= 0) { state.time = 0; endGame(); return; }
+  state.timeAlive += dt;
+  if (!state.infinite) {
+    state.time -= dt;
+    if (state.time <= 0) { state.time = 0; endGame('time'); return; }
+  }
 
   // block regrowth / spawn animation / activation
   const ballOver = (x, y, w, h) => state.balls.some(b => b.x + b.r > x - 2 && b.x - b.r < x + w + 2 && b.y + b.r > y - 2 && b.y - b.r < y + h + 2);
@@ -529,15 +575,16 @@ function update(dt) {
     b.trail.unshift({ x: b.x, y: b.y }); if (b.trail.length > 6) b.trail.pop();
   }
   ballBallCollisions();
+  if (state.mode !== 'playing') return;   // a hit may have capped the score and ended the run
 
   // wave clear: the break quota is met, so whatever is still standing shatters and the next layout drops in
   if (state.waveBroken >= state.waveQuota) {
     for (const bl of state.blocks) if (!bl.dead && bl.active && !bl.steel) spawnSplinters(bl, bl.x + bl.w / 2, bl.y + bl.h / 2, 2);
     const bonus = 1000 + 500 * (state.wave - 1);
-    state.score += bonus;
-    state.time += WAVE_TIME_BONUS;
+    addScore(bonus);
+    if (!state.infinite) state.time += WAVE_TIME_BONUS;
     state.wave++;
-    showBanner('ALL CLEAR!', `+${bonus}  +${WAVE_TIME_BONUS}s  →  WAVE ${state.wave}`, 2.0);
+    showBanner('ALL CLEAR!', `+${bonus}  ${state.infinite ? '' : `+${WAVE_TIME_BONUS}s  `}→  WAVE ${state.wave}`, 2.0);
     sfx('clear');
     spawnWave(state.wave);
     if (permanentBalls() < MAX_BALLS) {
@@ -560,7 +607,7 @@ function update(dt) {
   state.glow += (state.impact - state.glow) * (1 - Math.exp(-dt * 9));
 }
 
-const { render } = window.RealBlockBreaker.createRenderer(canvas, state, multiplier);
+const { render } = window.EasyBlockBreaker.createRenderer(canvas, state, multiplier, fmtTime);
 
 // ---------------------------------------------------------------- loop & layout
 let last = performance.now();
@@ -568,6 +615,7 @@ function frame(now) {
   let dt = (now - last) / 1000; last = now;
   dt = Math.min(dt, 1 / 30);
   update(dt);
+  if (state.mode === 'over' && state.endReason === 'limit' && now >= state.returnAt) showTitle();
   render();
   requestAnimationFrame(frame);
 }
