@@ -14,14 +14,14 @@ const context = vm.createContext({
 const source = name => fs.readFileSync(path.join(__dirname, '../js', name), 'utf8');
 vm.runInContext(source('core.js'), context);
 vm.runInContext(source('i18n.js'), context);
-Object.assign(context.window.RealBlockBreaker, {
+Object.assign(context.window.EasyBlockBreaker, {
   createAudio: () => ({ initAudio() {}, sfx() {}, setVolume() {} }),
   createRenderer: () => ({ render() {} }),
 });
 vm.runInContext(source('game.js').replace('window.__rbb = state;',
   'window.test = { state, startGame, spawnWave, update, COLS }; window.__rbb = state;'), context);
 const { state, startGame, spawnWave, update, COLS } = context.window.test;
-const { STEEL_FROM_WAVE } = context.window.RealBlockBreaker;
+const { STEEL_FROM_WAVE } = context.window.EasyBlockBreaker;
 
 // placement: every steel cell touches a non-steel cell or the open floor row, so a ball over it can always get out
 let cellsChecked = 0;
