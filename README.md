@@ -12,7 +12,7 @@ The interface automatically selects Japanese or English from your browser’s la
 - The bottom of the playfield is a wall, so the ball never drops out. There are no lives; you compete for score. Pick a mode on the title screen:
   - **Time Attack**: compete for score within a **90-second time limit**. Clearing a wave adds time.
   - **Infinite mode**: no time limit; the TIME plate in the HUD shows elapsed time instead (and no time is added). Use "Finish & save score" on the pause screen to go to the results screen.
-- Slide the **chrome deflector** on the bottom wall left and right. When the ball hits it, it is launched at an **angle that depends on where it struck**. Use this to steer the ball where you want it.
+- Slide the **blue-lit deflector** on the bottom wall left and right. When the ball hits it, it is launched at an **angle that depends on where it struck**. Use this to steer the ball where you want it.
 - Breaking blocks in a row builds a combo, and every 4 hits raises the score multiplier (up to x8). Hitting any wall other than the deflector breaks the combo.
 - Broken blocks **regrow in place** after a while. The delay is proportional to toughness (toughness × 6 s); the empty socket shows a gauge while it regrows.
 - Breaking as many cubes as the layout holds **clears the wave** (regrown blocks count again; the bar under WAVE shows progress). That awards bonus points and **extra time (+10 s, Time Attack only)**, spawns a new wave of blocks, and adds one more ball (up to 3). Blocks get tougher and balls get faster as the waves go on.

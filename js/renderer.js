@@ -38,6 +38,7 @@ function makeMatteTexture(w, h) {
 }
 const STEEL = [[0, '#9aa1a8'], [0.25, '#d6dbe0'], [0.5, '#aab1b8'], [0.75, '#c9ced4'], [1, '#858c93']];
 const LED_WARM = '#ffd9a3';        // warm-white LED strip along the rails
+const ZONE_LED = '#4f9dff';        // deflector LED: a cool blue, kept apart from the SPEED chip's cyan and the warm rail strip
 const boardTex = makeMatteTexture(W, H);
 const railTexH = makeBrushedTexture(W, WALL, STEEL, false, 0.10, 500);        // top / bottom rails
 const railTexV = makeBrushedTexture(WALL, H, STEEL, true, 0.10, 500);         // side rails
@@ -210,28 +211,34 @@ function drawBlock(bl) {
 
 function drawZone() {
   const z = state.zone, x0 = z.x - ZONE_W / 2, y0 = B - 2, h = WALL - 4;
-  // chrome plate set into the bottom rail
+  // black glass plate set into the bottom rail (same window-in-bezel language as the HUD and the item chips):
+  // the dark face is what separates it from the stainless rail, the blue LED is what makes it the player's colour
   ctx.save();
-  const pg = ctx.createLinearGradient(x0, y0, x0 + ZONE_W, y0 + h);
-  pg.addColorStop(0, '#5b6269'); pg.addColorStop(0.3, '#dfe4e8'); pg.addColorStop(0.5, '#ffffff'); pg.addColorStop(0.7, '#c2c8ce'); pg.addColorStop(1, '#4d545b');
-  ctx.fillStyle = pg; roundRect(ctx, x0, y0, ZONE_W, h, 4); ctx.fill();
-  // engraved center mark + tick marks showing the reflection angle map
-  ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 1.2;
+  ctx.fillStyle = '#0a1018'; roundRect(ctx, x0, y0, ZONE_W, h, 4); ctx.fill();
+  const rg = ctx.createLinearGradient(0, y0, 0, y0 + h);
+  rg.addColorStop(0, 'rgba(255,255,255,.22)'); rg.addColorStop(0.35, 'rgba(255,255,255,.03)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = rg; roundRect(ctx, x0, y0, ZONE_W, h, 4); ctx.fill();
+  // backlit center mark + tick marks showing the reflection angle map
+  ctx.shadowColor = ZONE_LED; ctx.shadowBlur = 6;
+  ctx.strokeStyle = 'rgba(160,205,255,.75)'; ctx.lineWidth = 1;
   for (let i = -3; i <= 3; i++) {
     const tx = z.x + i * (ZONE_W / 8);
     ctx.beginPath(); ctx.moveTo(tx, y0 + 4); ctx.lineTo(tx, y0 + (i === 0 ? 14 : 8)); ctx.stroke();
   }
-  ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1; roundRect(ctx, x0 + 1, y0 + 1, ZONE_W - 2, h - 2, 3); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // thin chrome lip so the plate still reads as a machined part
+  ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1; roundRect(ctx, x0 + 0.5, y0 + 0.5, ZONE_W - 1, h - 1, 4); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,.7)'; roundRect(ctx, x0 - 0.5, y0 - 0.5, ZONE_W + 1, h + 1, 5); ctx.stroke();
   // active LED strip on the interior edge (glows when hit)
-  const glow = 0.55 + z.flash * 0.45;
-  ctx.shadowColor = `rgba(255,217,163,${glow})`; ctx.shadowBlur = 12 + z.flash * 18;
-  ctx.fillStyle = `rgba(255,233,198,${0.8 + z.flash * 0.2})`;
+  const glow = 0.7 + z.flash * 0.3;
+  ctx.shadowColor = `rgba(79,157,255,${glow})`; ctx.shadowBlur = 16 + z.flash * 18;
+  ctx.fillStyle = `rgba(150,200,255,${0.95 + z.flash * 0.05})`;
   ctx.fillRect(x0 + 2, B - 3, ZONE_W - 4, 3);
   ctx.restore();
   // aim guide: faint fan showing possible exit angles
   ctx.save();
   ctx.globalAlpha = 0.12 + z.flash * 0.15;
-  ctx.strokeStyle = LED_WARM; ctx.lineWidth = 1;
+  ctx.strokeStyle = ZONE_LED; ctx.lineWidth = 1;
   for (let i = -2; i <= 2; i++) {
     const t = i / 2, ang = t * ZONE_MAX_ANGLE, sx = z.x + t * ZONE_W / 2;
     ctx.beginPath(); ctx.moveTo(sx, B - 3); ctx.lineTo(sx + Math.sin(ang) * 60, B - 3 - Math.cos(ang) * 60); ctx.stroke();
